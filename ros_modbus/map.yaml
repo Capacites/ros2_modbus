@@ -1,0 +1,31 @@
+#automat map
+
+test_device:
+
+  address: 172.21.176.51
+  port: 502
+  publish_frequency: 10 #Hz 
+      
+  publish_on_timer: 
+    - di_in_test1
+    - di_in_test2
+    - di_out_test1
+  
+  publish_on_event:
+    - di_in_test1
+  
+  input:
+    digital:
+      di_in_test1: 1
+      di_in_test2: 2
+      di_in_test5: 5
+    analog:
+      an_in_test1:
+      
+  output:
+    digital:
+      di_out_test1: 1
+      di_out_test6: 6
+    analog:
+      an_out_test2: 
+      an_out_test6:

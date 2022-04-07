@@ -1,0 +1,23 @@
+<?xml version="1.0"?>
+<package format="3">
+  <name>ros_modbus</name>
+  <version>0.0.0</version>
+  <description>TODO: Package description</description>
+  <maintainer email="todo@todo.todo">ecn</maintainer>
+  <license>TODO: License declaration</license>
+  
+  <!--
+  <url type="website">TODO</url>
+  <url type="repository">TODO</url>
+  <url type="bugtracker">TODO</url>
+  -->
+
+  <depend>rclcpp</depend>
+  <depend>rclcpy</depend>
+  <depend>std_msgs</depend>
+  <depend>ros_modbus_msgs</depend>
+  
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>
