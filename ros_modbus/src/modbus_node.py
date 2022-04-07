@@ -17,7 +17,7 @@ class modbus_node(Node):
         self.m_sub_queue_size = self.declare_parameter('sub_queue_size',10).value
         self.m_pub_queue_size = self.declare_parameter('pub_queue_size', 1).value
         self.m_name = self.declare_parameter('name', 'test_device').value
-        self.m_YAML_config_file = self.declare_parameter('YAML_config_file', '/home/ecn/ros2/src/332-AGVQLIO/ros2/ros_modbus/map.yaml').value
+        self.m_YAML_config_file = self.declare_parameter('YAML_config_file', '/home/ecn/ros2/src/modbus_ros2/ros_modbus/map.yaml').value
         self.m_debug = self.declare_parameter('debug', True).value
        
         self.m_configOK = False
