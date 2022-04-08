@@ -1,0 +1,3 @@
+[submodule "ros_modbus/src/Modbus"]
+	path = ros_modbus/src/Modbus
+	url = https://github.com/Mazurel/Modbus.git
