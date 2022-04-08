@@ -18,7 +18,7 @@ class modbus_node(Node):
         self.m_pub_queue_size = self.declare_parameter('pub_queue_size', 5).value
         self.m_name = self.declare_parameter('name', 'test_device').value
         self.m_YAML_config_file = self.declare_parameter('YAML_config_file', '/home/ecn/ros2/src/modbus_ros2/ros_modbus/map.yaml').value
-        self.m_debug = self.declare_parameter('debug', True).value
+        self.m_debug = self.declare_parameter('debug', False).value
 
         #member varaiables declarations in case of faulty configuration
         self.m_address = None
@@ -76,7 +76,7 @@ class modbus_node(Node):
                     else:
                         self.m_IO.update({name: ['input',type, address]})
 
-            self.m_clientMaster = ModbusClient(host=self.m_address, port=self.m_port, timeout=2, auto_open=True, auto_close=True)
+            self.m_clientMaster = ModbusClient(host=self.m_address, port=self.m_port, timeout=2, auto_open=True, auto_close=True, debug=self.m_debug)
             self.get_logger().info(f'Configuring device {self.m_name} with address {self.m_address} and port {self.m_port}')
             self.get_logger().info(f'Configuring device {self.m_name} with IO {[k for k in self.m_IO.keys()]}')
             self.m_configOK = self.verify()
@@ -105,7 +105,7 @@ class modbus_node(Node):
 
 
     def restart_connection(self):
-        self.m_clientMaster = ModbusClient(host=self.m_address, port=self.m_port, timeout=2, auto_open=True, auto_close=True)
+        self.m_clientMaster = ModbusClient(host=self.m_address, port=self.m_port, timeout=2, auto_open=True, auto_close=True, debug=self.m_debug)
         test = self.m_clientMaster.open() 
         if test and not self.m_connected:
             self.get_logger().info(f'Reconnected to {self.m_address}:{self.m_port}')
