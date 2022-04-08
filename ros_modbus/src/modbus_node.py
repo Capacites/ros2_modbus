@@ -71,7 +71,26 @@ class modbus_node(Node):
 
 
     def subscriber_callback(self, msg):       
-        dictionary = dict(zip(msg.coils, msg.values))
+        command = dict(zip(msg.coils, msg.values))
+        for coil, value in command.items():
+            if coil in self.m_IO.keys():
+                if self.m_IO[coil][0] == 'output':
+                    if self.m_IO[coil][1] == 'digital':
+                        try:
+                            self.m_clientMaster.write_single_coil(self.m_IO[coil][2], bool(value))
+                        except:
+                            self.get_logger().error(f'Tried to set coil {coil} at value {bool(value)} (value given was {value}) and failed , skipping')
+                    elif self.m_IO[coil][1] == 'analog':
+                        try:
+                            self.m_clientMaster.write_single_coil(self.m_IO[coil][2], value)
+                        except:
+                            self.get_logger().error(f'Tried to set coil {coil} at value {value} and failed , skipping')
+                    else:
+                        self.get_logger().warn(f'Unsupported output type for coil {coil}, skipping')
+                else:
+                    self.get_logger().warn(f'Coil {coil} is not set as output, skipping')
+            else:
+                self.get_logger().warn(f'Coil {coil} not declared, skipping')
 
 
     
