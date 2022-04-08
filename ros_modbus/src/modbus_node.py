@@ -1,10 +1,10 @@
 #! /usr/bin/env python
 # -*- coding: utf_8 -*-
 
-from rclpy.node import Node
 import rclpy
-from pyModbusTCP.client import ModbusClient
 import yaml
+from pyModbusTCP.client import ModbusClient
+from rclpy.node import Node
 from ros_modbus_msgs.msg import Modbus
 
 
@@ -35,7 +35,9 @@ class modbus_node(Node):
         self.m_msg_on_event.values = []
         self.m_IO = None
         self.m_clientMaster = None
-       
+        self.m_temp_value = None
+        self.m_publish = False
+
         self.m_configOK = False
 
         try:
@@ -54,7 +56,7 @@ class modbus_node(Node):
             self.m_address = conf_dic[self.m_name]['address']
             self.m_port = conf_dic[self.m_name]['port']
             self.create_timer(1/conf_dic[self.m_name]['publish_frequency'], self.publish_timer_callback)
-            self.create_timer(0.1, self.check_timer_callback)
+            self.create_timer(0.001, self.check_timer_callback)
             self.m_publish_on_timer = dict(zip(conf_dic[self.m_name]['publish_on_timer'],[0]*len(conf_dic[self.m_name]['publish_on_timer'])))
             self.m_publish_on_event = dict(zip(conf_dic[self.m_name]['publish_on_event'],[0]*len(conf_dic[self.m_name]['publish_on_event'])))
             self.m_IO = {}
@@ -75,7 +77,11 @@ class modbus_node(Node):
             self.m_clientMaster = ModbusClient(host=self.m_address, port=self.m_port, timeout=2, auto_open=True, auto_close=True)
             self.get_logger().info(f'Configured automat {self.m_name} with address {self.m_address} and port {self.m_port}')
             self.get_logger().info(f'Configured automat {self.m_name} with IO {[k for k in self.m_IO.keys()]}')
-            self.m_configOK = True
+            self.m_configOK = self.verify()
+            
+
+    def verify(self):
+        pass
 
 
     def now(self):
@@ -83,7 +89,60 @@ class modbus_node(Node):
 
 
     def check_timer_callback(self):
-        pass
+
+        if self.m_configOK :
+
+            for key in self.m_publish_on_event.keys():
+
+                if self.m_IO[key][0] == 'input':
+
+                    if self.m_IO[key][1] == 'digital':
+                        try:
+                            self.m_temp_value = int(self.m_clientMaster.read_discrete_inputs(self.m_IO[key][2])[0])
+                        except:
+                            self.get_logger().error(f'Tried to read I/O {key} and failed, skipping')
+
+                    elif self.m_IO[key][1] == 'analog':
+                        try:
+                            self.m_temp_value = int(self.m_clientMaster.read_input_registers(self.m_IO[key][2])[0])
+                        except:
+                            self.get_logger().error(f'Tried to read I/O {key} and failed, skipping')
+
+                    else:
+                        self.get_logger().warn(f'Unsupported output type for I/O {key}, skipping')
+
+                elif self.m_IO[key][0] == 'output':
+
+                    if self.m_IO[key][1] == 'digital':
+                        try:
+                            self.m_temp_value = int(self.m_clientMaster.read_coils(self.m_IO[key][2])[0])
+                        except:
+                            self.get_logger().error(f'Tried to read I/O {key} and failed, skipping')
+
+                    elif self.m_IO[key][1] == 'analog':
+                        try:
+                            self.m_temp_value = int(self.m_clientMaster.read_holding_registers(self.m_IO[key][2])[0])
+                        except:
+                            self.get_logger().error(f'Tried to read I/O {key} and failed, skipping')
+
+                    else:
+                        self.get_logger().warn(f'Unsupported output type for I/O {key}, skipping')
+
+                else:
+                    self.get_logger().warn(f'I/O {key} is not set as input nor output, skipping')
+
+                if not self.m_publish and self.m_publish_on_event[key] != self.m_temp_value :
+                    self.m_publish_on_event[key] = self.m_temp_value
+                    self.m_publish = True
+
+            if self.m_publish:
+                self.m_msg_on_event.in_out = list(self.m_publish_on_event.keys())
+                self.m_msg_on_event.values = list(self.m_publish_on_event.values())
+                self.m_msg_on_event.header.stamp = self.now()
+                self.m_clientMaster.close()
+                self.m_publisher.publish(self.m_msg_on_event)
+                self.m_publish = False
+
 
 
     def publish_timer_callback(self):
