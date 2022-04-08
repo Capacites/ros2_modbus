@@ -38,7 +38,9 @@ class modbus_node(Node):
         self.m_temp_value = None
         self.m_publish = False
 
+        self.m_connected = False
         self.m_configOK = False
+        self.m_reconnection_timer = None
 
         try:
             self.configure()
@@ -55,8 +57,8 @@ class modbus_node(Node):
             conf_dic = yaml.safe_load(file)
             self.m_address = conf_dic[self.m_name]['address']
             self.m_port = conf_dic[self.m_name]['port']
-            self.create_timer(1/conf_dic[self.m_name]['publish_frequency'], self.publish_timer_callback)
-            self.create_timer(0.001, self.check_timer_callback)
+            self.m_publisher_timer = self.create_timer(1/conf_dic[self.m_name]['publish_frequency'], self.publish_timer_callback)
+            self.m_checker_timer = self.create_timer(0.001, self.check_timer_callback)
             self.m_publish_on_timer = dict(zip(conf_dic[self.m_name]['publish_on_timer'],[0]*len(conf_dic[self.m_name]['publish_on_timer'])))
             self.m_publish_on_event = dict(zip(conf_dic[self.m_name]['publish_on_event'],[0]*len(conf_dic[self.m_name]['publish_on_event'])))
             self.m_IO = {}
@@ -75,22 +77,49 @@ class modbus_node(Node):
                         self.m_IO.update({name: ['input',type, address]})
 
             self.m_clientMaster = ModbusClient(host=self.m_address, port=self.m_port, timeout=2, auto_open=True, auto_close=True)
-            self.get_logger().info(f'Configured automat {self.m_name} with address {self.m_address} and port {self.m_port}')
-            self.get_logger().info(f'Configured automat {self.m_name} with IO {[k for k in self.m_IO.keys()]}')
+            self.get_logger().info(f'Configuring device {self.m_name} with address {self.m_address} and port {self.m_port}')
+            self.get_logger().info(f'Configuring device {self.m_name} with IO {[k for k in self.m_IO.keys()]}')
             self.m_configOK = self.verify()
+            if self.m_configOK:
+                self.get_logger().info(f'Connected to {self.m_address}:{self.m_port}')
+                self.get_logger().info(f'Configured {self.m_name} successfully')
+                self.m_connected = True
+
             
 
     def verify(self):
-        pass
+        if not self.m_clientMaster.open():
+            return False
+        else:
+            for key in self.m_publish_on_event.keys():
+                if key not in self.m_IO.keys():
+                    self.get_logger().error(f'I/O {key} is not provided in configuration file')
+                    return False
+                elif self.m_IO[key][1] not in ['digital', 'analog']:
+                    self.get_logger().error(f'I/O {key} is provided with incorrect I/O type (given {self.m_IO[key][1]} expected digital or analog) in configuration file')
+                    return False
+                elif self.m_IO[key][2] == None:
+                    self.get_logger().error(f'I/O {key} is provided with no address in configuration file')
+                    return False
+        return True
+
+
+    def restart_connection(self):
+        self.m_clientMaster = ModbusClient(host=self.m_address, port=self.m_port, timeout=2, auto_open=True, auto_close=True)
+        test = self.m_clientMaster.open() 
+        if test and not self.m_connected:
+            self.get_logger().info(f'Reconnected to {self.m_address}:{self.m_port}')
+            self.m_connected = True
+            self.m_reconnection_timer = None
 
 
     def now(self):
-            return self.get_clock().now().to_msg()
+        return self.get_clock().now().to_msg()
 
 
     def check_timer_callback(self):
 
-        if self.m_configOK :
+        if self.m_configOK and self.m_connected and self.m_clientMaster.open():
 
             for key in self.m_publish_on_event.keys():
 
@@ -142,11 +171,17 @@ class modbus_node(Node):
                 self.m_clientMaster.close()
                 self.m_publisher.publish(self.m_msg_on_event)
                 self.m_publish = False
-
+        else:
+            if not self.m_configOK:
+                self.get_logger().warn(f'Timer callback but configuration is not valid, reconfiguring')
+                self.configure()
+            else:
+                self.get_logger().warn(f'Timer callback but connection to {self.m_address}:{self.m_port} lost, reconnecting')
+                self.reconnection_timer = self.create_timer(0.0001, self.restart_connection)
 
 
     def publish_timer_callback(self):
-        if self.m_configOK :
+        if self.m_configOK and self.m_connected and self.m_clientMaster.open():
             for key in self.m_publish_on_timer.keys():
                 if self.m_IO[key][0] == 'input':
                     if self.m_IO[key][1] == 'digital':
@@ -182,12 +217,17 @@ class modbus_node(Node):
             self.m_clientMaster.close()
             self.m_publisher.publish(self.m_msg_on_timer)
         else:
-            self.get_logger().warn(f'Timer callback but configuration is not valid, skipping')
+            if not self.m_configOK:
+                self.get_logger().warn(f'Timer callback but configuration is not valid, reconfiguring')
+                self.configure()
+            else:
+                self.get_logger().warn(f'Timer callback but connection to {self.m_address}:{self.m_port} lost, reconnecting')
+                self.reconnection_timer = self.create_timer(0.0001, self.restart_connection)
 
 
     def subscriber_callback(self, msg):   
 
-        if self.m_configOK:    
+        if self.m_configOK and self.m_connected and self.m_clientMaster.open():   
             command = dict(zip(msg.in_out, msg.values))
             for key, value in command.items():
                 if key in self.m_IO.keys():
@@ -209,7 +249,12 @@ class modbus_node(Node):
                 else:
                     self.get_logger().warn(f'I/O {key} not declared, skipping')
         else:
-            self.get_logger().warn(f'Messaged received but configuration is not valid, skipping')
+            if not self.m_configOK:
+                self.get_logger().warn(f'Timer callback but configuration is not valid, reconfiguring')
+                self.configure()
+            else:
+                self.get_logger().warn(f'Timer callback but connection to {self.m_address}:{self.m_port} lost, reconnecting')
+                self.reconnection_timer = self.create_timer(0.0001, self.restart_connection)
 
 
     
