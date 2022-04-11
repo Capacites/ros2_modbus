@@ -16,12 +16,12 @@ ModbusNode::ModbusNode(rclcpp::NodeOptions options)
 
     m_checker_timer = this->create_wall_timer(1ms, std::bind(&ModbusNode::check_timer_callback, this));
 
-    try {
+    //try {
        configure();
-    }
-    catch (...) {
-        RCLCPP_ERROR(get_logger(), "Configuration file not valid, please provide a valid configuration file");
-    }
+    //}
+    //catch (...) {
+    //    RCLCPP_ERROR(get_logger(), "Configuration file not valid, please provide a valid configuration file");
+    //}
 }
 
 
@@ -44,41 +44,57 @@ void ModbusNode::configure()
             m_publish_on_event.insert({iter, 0});
         }
 
-        for(std::pair<std::string, std::map<std::string, int>> element : config[m_name]["input"].as<std::map<std::string, std::map<std::string, int>>>())
+        std::cout << config[m_name]["address"].as<std::string>() << std::endl;
+
+        for(YAML::const_iterator element=config[m_name]["input"].begin();element!=config[m_name]["input"].end();++element)
         {
-            for(std::pair<std::string, int> element2 : element.second)
+            for(YAML::const_iterator element2=element->second.begin();element2!=element->second.end();++element2)
             {
                 m_IO_temp.type = "input";
-                m_IO_temp.data_type = element2.first;
-                if(element2.second)
+                m_IO_temp.data_type = element->first.as<std::string>();
+                if(element2->second.IsScalar())
                 {
-                    m_IO_temp.address = element2.second-1;
+                    m_IO_temp.address = element2->second.as<int>()-1;
                 }
                 else
                 {
                     m_IO_temp.address = NAN;
                 }
-                m_IO.insert(std::pair(element2.first, m_IO_temp));
+                m_IO.insert(std::pair(element2->first.as<std::string>(), m_IO_temp));
+
             }
         }
 
-        for(std::pair<std::string, std::map<std::string, int>> element : config[m_name]["output"].as<std::map<std::string, std::map<std::string, int>>>())
+        for(YAML::const_iterator element=config[m_name]["output"].begin();element!=config[m_name]["output"].end();++element)
         {
-            for(std::pair<std::string, int> element2 : element.second)
+            for(YAML::const_iterator element2=element->second.begin();element2!=element->second.end();++element2)
             {
                 m_IO_temp.type = "output";
-                m_IO_temp.data_type = element2.first;
-                if(element2.second)
+                m_IO_temp.data_type = element->first.as<std::string>();
+                if(element2->second.IsScalar())
                 {
-                    m_IO_temp.address = element2.second-1;
+                    m_IO_temp.address = element2->second.as<int>()-1;
                 }
                 else
                 {
                     m_IO_temp.address = NAN;
                 }
-                m_IO.insert(std::pair(element2.first, m_IO_temp));
+                m_IO.insert(std::pair(element2->first.as<std::string>(), m_IO_temp));
             }
         }
+
+        m_server.sin_addr.s_addr = inet_addr("172.21.176.51");
+        m_server.sin_family = AF_INET;
+        m_server.sin_port = 502;
+        connect(m_sock, (struct sockaddr*) &m_server, sizeof(m_server));
+
+        std::vector<MB::ModbusCell> test{true};
+        MB::ModbusRequest request(1, MB::utils::WriteSingleDiscreteOutputCoil, 1, 1, test);
+        MB::TCP::Connection connection(m_sock);
+        connection.sendRequest(request);
+
+
+
     }
 
 }

@@ -61,9 +61,8 @@ private:
     std::map<std::string, uint16_t> m_publish_on_event;
     ros_modbus_msgs::msg::Modbus m_msg_on_event;
     std::map<std::string, m_IO_struct> m_IO;
-    int m_sock{0};
-    MB::ModbusRequest m_request;
-    MB::ModbusResponse m_response;
+    int m_sock{socket(AF_INET, SOCK_STREAM,0)};
+    sockaddr_in m_server;
     int m_temp_value;
     bool m_publish;
     bool m_connected;
