@@ -10,9 +10,7 @@
 #include <modbusResponse.hpp>
 #include <TCP/connection.hpp>
 
-#include <yaml.h>
-#include <yaml-cpp/node/node.h>
-#include <yaml-cpp/node/parse.h>
+#include <yaml-cpp/yaml.h>
 
 //Standard includes
 #include <string>
@@ -70,13 +68,14 @@ private:
     bool m_publish;
     bool m_connected;
     bool m_configOK;
-    std::vector<std::string> m_temp;
+
+    m_IO_struct m_IO_temp;
 
 
 //ROS components
     rclcpp::TimerBase::SharedPtr m_reconnection_timer;
     rclcpp::TimerBase::SharedPtr m_publisher_timer;
-    rclcpp::TimerBase::SharedPtr m_checker_timer = this->create_wall_timer(1ms, std::bind(&ModbusNode::check_timer_callback, this));
+    rclcpp::TimerBase::SharedPtr m_checker_timer;
 
 };
 }

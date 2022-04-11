@@ -20,8 +20,9 @@ find_package(ros_modbus_msgs REQUIRED)
 # main code is a node class + standalone executable
 add_executable(modbus_node src/modbus_node.cpp)
 target_include_directories(modbus_node PRIVATE include)
-add_subdirectory(src/Modbus src/yaml-cpp)
-target_link_libraries(modbus_node ${rclcpp_LIBRARIES} Modbus)
+add_subdirectory(src/yaml-cpp)
+add_subdirectory(src/Modbus)
+target_link_libraries(modbus_node ${rclcpp_LIBRARIES} Modbus yaml-cpp)
 ament_target_dependencies(modbus_node std_msgs ros_modbus_msgs)
 
 
