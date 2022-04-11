@@ -50,6 +50,7 @@ class modbus_node(Node):
         #ROS related components
         self.m_subscriber = self.create_subscription(Modbus, "/ros_modbus/command",self.subscriber_callback, self.m_sub_queue_size)
         self.m_publisher = self.create_publisher(Modbus, "/ros_modbus/report", self.m_pub_queue_size)
+        self.m_checker_timer = self.create_timer(0.001, self.check_timer_callback)
         
 
     def configure(self):
@@ -58,7 +59,6 @@ class modbus_node(Node):
             self.m_address = conf_dic[self.m_name]['address']
             self.m_port = conf_dic[self.m_name]['port']
             self.m_publisher_timer = self.create_timer(1/conf_dic[self.m_name]['publish_frequency'], self.publish_timer_callback)
-            self.m_checker_timer = self.create_timer(0.001, self.check_timer_callback)
             self.m_publish_on_timer = dict(zip(conf_dic[self.m_name]['publish_on_timer'],[0]*len(conf_dic[self.m_name]['publish_on_timer'])))
             self.m_publish_on_event = dict(zip(conf_dic[self.m_name]['publish_on_event'],[0]*len(conf_dic[self.m_name]['publish_on_event'])))
             self.m_IO = {}

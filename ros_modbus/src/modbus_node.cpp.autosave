@@ -43,6 +43,8 @@ void ModbusNode::configure()
         {
             m_publish_on_event.insert({iter, 0});
         }
+        
+        
     }
 
 }
