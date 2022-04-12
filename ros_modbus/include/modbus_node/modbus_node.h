@@ -10,6 +10,7 @@
 #include <modbusResponse.hpp>
 #include <TCP/connection.hpp>
 
+//YAML include
 #include <yaml-cpp/yaml.h>
 
 //Standard includes
@@ -17,6 +18,8 @@
 #include <vector>
 #include <map>
 #include <sys/socket.h>
+#include <cstdio>
+#include <iostream>
 
 using namespace std::chrono_literals;
 
@@ -36,6 +39,29 @@ private:
     void check_timer_callback();
     void publish_timer_callback();
     void subscriber_callback();
+
+    template <typename ...Args>
+    void RCLCPP_FORMATTED_INFO(const std::string format, Args && ...args)
+    {
+        m_buffer_size = std::snprintf(nullptr, 0, format.c_str(), std::forward<Args>(args)...);
+        m_buffer.resize(m_buffer_size +1, '\0');
+        RCLCPP_INFO(get_logger(), m_buffer);
+    }
+    template <typename ...Args>
+    void RCLCPP_FORMATTED_WARN(const std::string format, Args && ...args)
+    {
+        m_buffer_size = std::snprintf(nullptr, 0, format.c_str(), std::forward<Args>(args)...);
+        m_buffer.resize(m_buffer_size +1, '\0');
+        RCLCPP_WARN(get_logger(), m_buffer);
+    }
+
+    template <typename ...Args>
+    void RCLCPP_FORMATTED_ERROR(const std::string format, Args && ...args)
+    {
+        m_buffer_size = std::snprintf(nullptr, 0, format.c_str(), std::forward<Args>(args)...);
+        m_buffer.resize(m_buffer_size +1, '\0');
+        RCLCPP_ERROR(get_logger(), m_buffer);
+    }
 
 
 //IO structure definition
@@ -70,14 +96,15 @@ private:
     bool m_configOK;
 
     m_IO_struct m_IO_temp;
-
+    std::string m_buffer;
+    int m_buffer_size;
 
 //ROS components
     rclcpp::TimerBase::SharedPtr m_reconnection_timer;
     rclcpp::TimerBase::SharedPtr m_publisher_timer;
     rclcpp::TimerBase::SharedPtr m_checker_timer;
 
-};
+   };
 }
 
 #endif

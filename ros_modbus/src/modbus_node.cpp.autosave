@@ -86,12 +86,9 @@ void ModbusNode::configure()
         m_server.sin_port = htons(m_port);
         connect(m_sock, (struct sockaddr*) &m_server, sizeof(m_server));
 
-        m_buffer_size = std::snprintf(nullptr, 0, "Configuring device %s with address %s and port %d", m_name.c_str(), m_address.c_str(), m_port);
-        m_buffer.resize(m_buffer_size +1, '\0');
-        sprintf(&m_buffer[0], "Configuring device %s with address %s and port %d", m_name.c_str(), m_address.c_str(), m_port);
-        RCLCPP_INFO(get_logger(), m_buffer);
-
         RCLCPP_FORMATTED_INFO("Configuring device %s with address %s and port %d", m_name.c_str(), m_address.c_str(), m_port);
+        
+        RCLCPP_FORMATTED_INFO("Configuring device %s with IO %s", m_name.c_str());
 
 
     }
