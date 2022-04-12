@@ -83,15 +83,11 @@ void ModbusNode::configure()
             }
         }
 
-        m_server.sin_addr.s_addr = inet_addr("172.21.176.51");
+        m_server.sin_addr.s_addr = inet_addr(m_address.c_str());
         m_server.sin_family = AF_INET;
-        m_server.sin_port = 502;
+        m_server.sin_port = htons(m_port);
         connect(m_sock, (struct sockaddr*) &m_server, sizeof(m_server));
 
-        std::vector<MB::ModbusCell> test{true};
-        MB::ModbusRequest request(1, MB::utils::WriteSingleDiscreteOutputCoil, 1, 1, test);
-        MB::TCP::Connection connection(m_sock);
-        connection.sendRequest(request);
 
 
 

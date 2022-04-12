@@ -62,6 +62,7 @@ private:
     ros_modbus_msgs::msg::Modbus m_msg_on_event;
     std::map<std::string, m_IO_struct> m_IO;
     int m_sock{socket(AF_INET, SOCK_STREAM,0)};
+    MB::TCP::Connection m_connection{MB::TCP::Connection(m_sock)};
     sockaddr_in m_server;
     int m_temp_value;
     bool m_publish;
