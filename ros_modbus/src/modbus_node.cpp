@@ -30,10 +30,11 @@ void ModbusNode::configure()
     YAML::Node config = YAML::LoadFile(m_YAML_config_file);
     if(config[m_name])
     {
-        if(m_sock)
+        if(m_sock != 0)
         {
-            close(m_sock);
+            closeSocket();
         }
+
         m_address = config[m_name]["address"].as<std::string>();
         m_port = config[m_name]["port"].as<int>();
         m_publisher_timer = this->create_wall_timer(std::chrono::seconds(1/config[m_name]["publish_frequency"].as<int>()), std::bind(&ModbusNode::publish_timer_callback, this));
@@ -88,6 +89,7 @@ void ModbusNode::configure()
             }
         }
 
+        m_sock = socket(AF_INET, SOCK_STREAM,0);
         m_server.sin_addr.s_addr = inet_addr(m_address.c_str());
         m_server.sin_family = AF_INET;
         m_server.sin_port = htons(m_port);
@@ -101,10 +103,6 @@ void ModbusNode::configure()
             RCLCPP_INFO(get_logger(),"Configured %s successfully", m_name.c_str());
             m_connected = true;
         }
-
-
-
-
     }
 }
 
@@ -157,9 +155,33 @@ bool ModbusNode::verify()
     return true;
 }
 
+void ModbusNode::restart_connection()
+{
+
+    if(m_sock != 0)
+    {
+        closeSocket();
+    }
+    m_sock = socket(AF_INET, SOCK_STREAM,0);
+    m_server.sin_addr.s_addr = inet_addr(m_address.c_str());
+    m_server.sin_family = AF_INET;
+    m_server.sin_port = htons(m_port);
+    if(!m_connected && connect(m_sock, (struct sockaddr*) &m_server, sizeof(m_server)) ==0)
+    {
+        RCLCPP_INFO(get_logger(), "Reconnected to %s:%d", m_address.c_str(), m_port);
+        m_connected = true;
+        try{
+            m_reconnection_timer->cancel();
+        }
+        catch(...){
+
+        }
+    }
+}
+
 void ModbusNode::check_timer_callback()
 {
-    configure();
+
 }
 
 void ModbusNode::publish_timer_callback()

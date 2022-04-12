@@ -34,10 +34,15 @@ private:
 
     void configure();
     bool verify();
-    void reconnection();
+    void restart_connection();
     void check_timer_callback();
     void publish_timer_callback();
     void subscriber_callback();
+
+    void closeSocket(){
+           close(m_sock);
+           m_sock = 0;
+        }
 
 //IO structure definition
     struct m_IO_struct{
@@ -62,7 +67,7 @@ private:
     std::map<std::string, uint16_t> m_publish_on_event;
     ros_modbus_msgs::msg::Modbus m_msg_on_event;
     std::map<std::string, m_IO_struct> m_IO;
-    int m_sock{socket(AF_INET, SOCK_STREAM,0)};
+    int m_sock;
     MB::TCP::Connection m_connection{MB::TCP::Connection(m_sock)};
     sockaddr_in m_server;
 
