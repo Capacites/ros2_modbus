@@ -94,11 +94,12 @@ void ModbusNode::configure()
             RCLCPP_INFO(get_logger(),"Connected to %s:%d", m_address.c_str(), m_port);
             RCLCPP_INFO(get_logger(),"Configured %s successfully", m_name.c_str());
             m_connected = true;
-           // MB::TCP::Connection m_connection{MB::TCP::Connection(m_sock)};
+
             std::vector<MB::ModbusCell> value{false};
-            MB::ModbusRequest request(1, MB::utils::WriteSingleDiscreteOutputCoil, 1, 1,std::vector<MB::ModbusCell>{true});
+            m_connection.setMessageId(MB::utils::ReadDiscreteOutputCoils);
+            MB::ModbusRequest request(1, MB::utils::ReadDiscreteOutputCoils, 1, 1);
             m_connection.sendRequest(request);
-            auto test = m_connection.awaitResponse();
+            auto test = m_connection.sendRequest(request);
         }
     }
 }
