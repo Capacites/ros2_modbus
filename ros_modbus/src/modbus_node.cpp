@@ -59,6 +59,7 @@ void ModbusNode::configure()
                     m_IO_temp.address = NAN;
                 }
                 m_IO.insert(std::pair(element2->first.as<std::string>(), m_IO_temp));
+                m_IO_as_str += element2->first.as<std::string>() + " ";
 
             }
         }
@@ -78,6 +79,7 @@ void ModbusNode::configure()
                     m_IO_temp.address = NAN;
                 }
                 m_IO.insert(std::pair(element2->first.as<std::string>(), m_IO_temp));
+                m_IO_as_str += element2->first.as<std::string>() + " ";
             }
         }
 
@@ -86,22 +88,27 @@ void ModbusNode::configure()
         m_server.sin_port = htons(m_port);
         connect(m_sock, (struct sockaddr*) &m_server, sizeof(m_server));
 
-        m_buffer_size = std::snprintf(nullptr, 0, "Configuring device %s with address %s and port %d", m_name.c_str(), m_address.c_str(), m_port);
-        m_buffer.resize(m_buffer_size +1, '\0');
-        sprintf(&m_buffer[0], "Configuring device %s with address %s and port %d", m_name.c_str(), m_address.c_str(), m_port);
-        RCLCPP_INFO(get_logger(), m_buffer);
-
         RCLCPP_FORMATTED_INFO("Configuring device %s with address %s and port %d", m_name.c_str(), m_address.c_str(), m_port);
-
-
+        RCLCPP_INFO(get_logger(),"Configuring device %s with IO %s", m_name.c_str(), m_IO_as_str.c_str());
+        m_configOK = verify();
+        if(m_configOK)
+        {
+            RCLCPP_FORMATTED_INFO("Connected to %s:%d", m_address.c_str(), m_port);
+            RCLCPP_FORMATTED_INFO("Configured %s successfully", m_name.c_str());
+            m_connected = true;
+        }
     }
+}
+
+bool ModbusNode::verify()
+{
 
 }
 
 void ModbusNode::check_timer_callback()
 {
 
-};
+}
 
 void ModbusNode::publish_timer_callback()
 {

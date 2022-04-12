@@ -40,30 +40,6 @@ private:
     void publish_timer_callback();
     void subscriber_callback();
 
-    template <typename ...Args>
-    void RCLCPP_FORMATTED_INFO(const std::string format, Args && ...args)
-    {
-        m_buffer_size = std::snprintf(nullptr, 0, format.c_str(), std::forward<Args>(args)...);
-        m_buffer.resize(m_buffer_size +1, '\0');
-        RCLCPP_INFO(get_logger(), m_buffer);
-    }
-    template <typename ...Args>
-    void RCLCPP_FORMATTED_WARN(const std::string format, Args && ...args)
-    {
-        m_buffer_size = std::snprintf(nullptr, 0, format.c_str(), std::forward<Args>(args)...);
-        m_buffer.resize(m_buffer_size +1, '\0');
-        RCLCPP_WARN(get_logger(), m_buffer);
-    }
-
-    template <typename ...Args>
-    void RCLCPP_FORMATTED_ERROR(const std::string format, Args && ...args)
-    {
-        m_buffer_size = std::snprintf(nullptr, 0, format.c_str(), std::forward<Args>(args)...);
-        m_buffer.resize(m_buffer_size +1, '\0');
-        RCLCPP_ERROR(get_logger(), m_buffer);
-    }
-
-
 //IO structure definition
     struct m_IO_struct{
         std::string type;
@@ -90,6 +66,7 @@ private:
     int m_sock{socket(AF_INET, SOCK_STREAM,0)};
     MB::TCP::Connection m_connection{MB::TCP::Connection(m_sock)};
     sockaddr_in m_server;
+
     int m_temp_value;
     bool m_publish;
     bool m_connected;
@@ -98,6 +75,7 @@ private:
     m_IO_struct m_IO_temp;
     std::string m_buffer;
     int m_buffer_size;
+    std::string m_IO_as_str;
 
 //ROS components
     rclcpp::TimerBase::SharedPtr m_reconnection_timer;
