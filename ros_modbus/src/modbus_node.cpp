@@ -14,7 +14,7 @@ ModbusNode::ModbusNode(rclcpp::NodeOptions options)
     m_msg_on_event.set__in_out(std::vector<std::string>());
     m_msg_on_event.set__values(std::vector<uint16_t>());
 
-    m_checker_timer = this->create_wall_timer(1ms, std::bind(&ModbusNode::check_timer_callback, this));
+   // m_checker_timer = this->create_wall_timer(1ms, std::bind(&ModbusNode::check_timer_callback, this));
 
     //try {
        configure();
@@ -30,13 +30,10 @@ void ModbusNode::configure()
     YAML::Node config = YAML::LoadFile(m_YAML_config_file);
     if(config[m_name])
     {
-        if(m_sock != 0)
-        {
-            closeSocket();
-        }
-
         m_address = config[m_name]["address"].as<std::string>();
         m_port = config[m_name]["port"].as<int>();
+        m_connection = m_connection.with(m_address, m_port);
+
         m_publisher_timer = this->create_wall_timer(std::chrono::seconds(1/config[m_name]["publish_frequency"].as<int>()), std::bind(&ModbusNode::publish_timer_callback, this));
 
         for (const auto &iter : config[m_name]["publish_on_timer"].as<std::vector<std::string>>())
@@ -89,11 +86,6 @@ void ModbusNode::configure()
             }
         }
 
-        m_sock = socket(AF_INET, SOCK_STREAM,0);
-        m_server.sin_addr.s_addr = inet_addr(m_address.c_str());
-        m_server.sin_family = AF_INET;
-        m_server.sin_port = htons(m_port);
-
         RCLCPP_INFO(get_logger(),"Configuring device %s with address %s and port %d", m_name.c_str(), m_address.c_str(), m_port);
         RCLCPP_INFO(get_logger(),"Configuring device %s with IO %s", m_name.c_str(), m_IO_as_str.c_str());
         m_configOK = verify();
@@ -102,13 +94,18 @@ void ModbusNode::configure()
             RCLCPP_INFO(get_logger(),"Connected to %s:%d", m_address.c_str(), m_port);
             RCLCPP_INFO(get_logger(),"Configured %s successfully", m_name.c_str());
             m_connected = true;
+           // MB::TCP::Connection m_connection{MB::TCP::Connection(m_sock)};
+            std::vector<MB::ModbusCell> value{false};
+            MB::ModbusRequest request(1, MB::utils::WriteSingleDiscreteOutputCoil, 1, 1,std::vector<MB::ModbusCell>{true});
+            m_connection.sendRequest(request);
+            auto test = m_connection.awaitResponse();
         }
     }
 }
 
 bool ModbusNode::verify()
 {
-    if( connect(m_sock, (struct sockaddr*) &m_server, sizeof(m_server)) !=0 )
+    if( false)
     {
            RCLCPP_INFO(get_logger(),"%s:%d is not a valid server address or server is down", m_address.c_str(), m_port);
            return false;
@@ -157,31 +154,36 @@ bool ModbusNode::verify()
 
 void ModbusNode::restart_connection()
 {
+   m_connection = m_connection.with(m_address, m_port);
 
-    if(m_sock != 0)
-    {
-        closeSocket();
-    }
-    m_sock = socket(AF_INET, SOCK_STREAM,0);
-    m_server.sin_addr.s_addr = inet_addr(m_address.c_str());
-    m_server.sin_family = AF_INET;
-    m_server.sin_port = htons(m_port);
-    if(!m_connected && connect(m_sock, (struct sockaddr*) &m_server, sizeof(m_server)) ==0)
+    if(true)
     {
         RCLCPP_INFO(get_logger(), "Reconnected to %s:%d", m_address.c_str(), m_port);
         m_connected = true;
-        try{
-            m_reconnection_timer->cancel();
-        }
-        catch(...){
-
-        }
+        m_reconnection_timer->cancel();
     }
 }
 
 void ModbusNode::check_timer_callback()
 {
+    if(m_configOK && m_connected) //TODO add connection check
+    {
+        for(auto &[key, value] : m_publish_on_event)
+        {
+            if(m_IO[key].type == "input")
+            {
+                if (m_IO[key].data_type == "digital")
+                {
+                    try {
+                        MB::ModbusRequest request(1, MB::utils::ReadDiscreteOutputCoils, m_IO[key].address);
+                        auto test = m_connection.sendRequest(request);
+                    } catch (...) {
 
+                    }
+                }
+            }
+        }
+    }
 }
 
 void ModbusNode::publish_timer_callback()

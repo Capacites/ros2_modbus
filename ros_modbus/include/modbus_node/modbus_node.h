@@ -17,8 +17,6 @@
 #include <string>
 #include <vector>
 #include <map>
-#include <sys/socket.h>
-#include <fcntl.h>
 
 using namespace std::chrono_literals;
 
@@ -38,11 +36,6 @@ private:
     void check_timer_callback();
     void publish_timer_callback();
     void subscriber_callback();
-
-    void closeSocket(){
-           close(m_sock);
-           m_sock = 0;
-        }
 
 //IO structure definition
     struct m_IO_struct{
@@ -67,22 +60,17 @@ private:
     std::map<std::string, uint16_t> m_publish_on_event;
     ros_modbus_msgs::msg::Modbus m_msg_on_event;
     std::map<std::string, m_IO_struct> m_IO;
-    int m_sock;
-    MB::TCP::Connection m_connection{MB::TCP::Connection(m_sock)};
-    sockaddr_in m_server;
+    MB::TCP::Connection m_connection;
 
     int m_temp_value;
     bool m_publish;
-    bool m_connected;
+    bool m_connected{false};
     bool m_configOK;
 
     m_IO_struct m_IO_temp;
     std::string m_buffer;
-    void* m_connection_buffer;
     int m_buffer_size;
     std::string m_IO_as_str;
-    int m_err = 0;
-    socklen_t m_size = sizeof (m_err);
 
 //ROS components
     rclcpp::TimerBase::SharedPtr m_reconnection_timer;
