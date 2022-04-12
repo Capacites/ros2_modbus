@@ -18,8 +18,7 @@
 #include <vector>
 #include <map>
 #include <sys/socket.h>
-#include <cstdio>
-#include <iostream>
+#include <fcntl.h>
 
 using namespace std::chrono_literals;
 
@@ -74,8 +73,11 @@ private:
 
     m_IO_struct m_IO_temp;
     std::string m_buffer;
+    void* m_connection_buffer;
     int m_buffer_size;
     std::string m_IO_as_str;
+    int m_err = 0;
+    socklen_t m_size = sizeof (m_err);
 
 //ROS components
     rclcpp::TimerBase::SharedPtr m_reconnection_timer;

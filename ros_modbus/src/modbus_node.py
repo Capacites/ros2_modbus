@@ -101,6 +101,16 @@ class modbus_node(Node):
                 elif self.m_IO[key][2] == None:
                     self.get_logger().error(f'I/O {key} is provided with no address in configuration file')
                     return False
+            for key in self.m_publish_on_timer.keys():
+                if key not in self.m_IO.keys():
+                    self.get_logger().error(f'I/O {key} is not provided in configuration file')
+                    return False
+                elif self.m_IO[key][1] not in ['digital', 'analog']:
+                    self.get_logger().error(f'I/O {key} is provided with incorrect I/O type (given {self.m_IO[key][1]} expected digital or analog) in configuration file')
+                    return False
+                elif self.m_IO[key][2] == None:
+                    self.get_logger().error(f'I/O {key} is provided with no address in configuration file')
+                    return False
         return True
 
 
