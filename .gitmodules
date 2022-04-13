@@ -1,6 +1,3 @@
-[submodule "ros_modbus/third-party/libmodbus"]
-	path = ros_modbus/third-party/libmodbus
-	url = https://github.com/stephane/libmodbus.git
 [submodule "ros_modbus/third-party/yaml-cpp"]
 	path = ros_modbus/third-party/yaml-cpp
 	url = https://github.com/jbeder/yaml-cpp.git

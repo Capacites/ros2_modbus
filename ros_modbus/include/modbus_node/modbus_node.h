@@ -6,9 +6,6 @@
 #include <ros_modbus_msgs/msg/modbus.hpp>
 
 //Modbus include
-#include <modbusRequest.hpp>
-#include <modbusResponse.hpp>
-#include <TCP/connection.hpp>
 
 //YAML include
 #include <yaml-cpp/yaml.h>
@@ -60,7 +57,6 @@ private:
     std::map<std::string, uint16_t> m_publish_on_event;
     ros_modbus_msgs::msg::Modbus m_msg_on_event;
     std::map<std::string, m_IO_struct> m_IO;
-    MB::TCP::Connection m_connection;
 
     int m_temp_value;
     bool m_publish;
