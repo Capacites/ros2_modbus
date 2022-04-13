@@ -15,8 +15,9 @@ ModbusNode::ModbusNode(rclcpp::NodeOptions options)
     m_msg_on_event.set__in_out(std::vector<std::string>());
     m_msg_on_event.set__values(std::vector<uint16_t>());
 
-    m_checker_timer = this->create_wall_timer(1ms, std::bind(&ModbusNode::check_timer_callback, this));
-    m_reconnection_timer = this->create_wall_timer(1ms, std::bind(&ModbusNode::restart_connection, this));
+    m_checker_timer = this->create_wall_timer(100ms, std::bind(&ModbusNode::check_timer_callback, this));
+
+    m_reconnection_timer = this->create_wall_timer(100ms, std::bind(&ModbusNode::restart_connection, this));
     m_reconnection_timer->cancel();
 
     m_publisher = this->create_publisher<Modbus>("/ros_modbus/report", rclcpp::QoS(m_pub_queue_size));
@@ -93,8 +94,10 @@ void ModbusNode::configure()
 
         m_ctx = modbus_new_tcp(m_address.c_str(), m_port);
 
-        //RCLCPP_INFO(get_logger(),"Configuring device %s with address %s and port %d", m_name.c_str(), m_address.c_str(), m_port);
-        //m_connected = verify_connection();
+        m_checker_timer->reset();
+
+        RCLCPP_INFO(get_logger(),"Configuring device %s with address %s and port %d", m_name.c_str(), m_address.c_str(), m_port);
+        m_connected = verify_connection();
 
         RCLCPP_INFO(get_logger(),"Configuring device %s with IO %s", m_name.c_str(), m_IO_as_str.c_str());
         m_configOK = verify_IO();
@@ -107,7 +110,7 @@ bool ModbusNode::verify_connection()
     if (modbus_connect(m_ctx) == 0)
     {
         modbus_close(m_ctx);
-        RCLCPP_INFO(get_logger(),"Connected to %s:%s successfully", m_address.c_str(), m_port);
+        RCLCPP_INFO(get_logger(),"Connected to %s:%d successfully", m_address.c_str(), m_port);
         return true;
     }
     else
@@ -179,6 +182,7 @@ void ModbusNode::restart_connection()
 
 void ModbusNode::check_timer_callback()
 {
+    m_checker_timer->cancel();
     if(m_configOK && m_connected && modbus_connect(m_ctx) == 0)
     {
         for(auto &[key, value] : m_publish_on_event)
@@ -270,10 +274,11 @@ void ModbusNode::check_timer_callback()
         }
         else if(m_reconnection_timer->is_canceled())
         {
-            RCLCPP_WARN(get_logger(), "Timer callback but connection to %s:%d lost, reconnecting", m_address.c_str(), m_port);
-            m_reconnection_timer.reset();
+            RCLCPP_WARN(get_logger(), "Timer callback but connection to  lost, reconnecting");
+            m_reconnection_timer->reset();
         }
     }
+    m_checker_timer->reset();
 }
 
 void ModbusNode::publish_timer_callback()
