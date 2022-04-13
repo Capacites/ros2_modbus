@@ -32,7 +32,6 @@ void ModbusNode::configure()
     {
         m_address = config[m_name]["address"].as<std::string>();
         m_port = config[m_name]["port"].as<int>();
-        m_connection = m_connection.with(m_address, m_port);
 
         m_publisher_timer = this->create_wall_timer(std::chrono::seconds(1/config[m_name]["publish_frequency"].as<int>()), std::bind(&ModbusNode::publish_timer_callback, this));
 
@@ -95,11 +94,6 @@ void ModbusNode::configure()
             RCLCPP_INFO(get_logger(),"Configured %s successfully", m_name.c_str());
             m_connected = true;
 
-            std::vector<MB::ModbusCell> value{false};
-            m_connection.setMessageId(MB::utils::ReadDiscreteOutputCoils);
-            MB::ModbusRequest request(1, MB::utils::ReadDiscreteOutputCoils, 1, 1);
-            m_connection.sendRequest(request);
-            auto test = m_connection.sendRequest(request);
         }
     }
 }
@@ -155,8 +149,6 @@ bool ModbusNode::verify()
 
 void ModbusNode::restart_connection()
 {
-   m_connection = m_connection.with(m_address, m_port);
-
     if(true)
     {
         RCLCPP_INFO(get_logger(), "Reconnected to %s:%d", m_address.c_str(), m_port);
@@ -176,8 +168,7 @@ void ModbusNode::check_timer_callback()
                 if (m_IO[key].data_type == "digital")
                 {
                     try {
-                        MB::ModbusRequest request(1, MB::utils::ReadDiscreteOutputCoils, m_IO[key].address);
-                        auto test = m_connection.sendRequest(request);
+
                     } catch (...) {
 
                     }
