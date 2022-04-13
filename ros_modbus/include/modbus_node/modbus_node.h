@@ -6,11 +6,13 @@
 #include <ros_modbus_msgs/msg/modbus.hpp>
 
 //Modbus include
+#include <modbus/modbus-tcp.h>
 
 //YAML include
 #include <yaml-cpp/yaml.h>
 
 //Standard includes
+#include <memory>
 #include <string>
 #include <vector>
 #include <map>
@@ -28,11 +30,12 @@ public:
 private:
 
     void configure();
-    bool verify();
+    bool verify_IO();
+    bool verify_connection();
     void restart_connection();
     void check_timer_callback();
     void publish_timer_callback();
-    void subscriber_callback();
+    void subscriber_callback(ros_modbus_msgs::msg::Modbus::SharedPtr msg);
 
 //IO structure definition
     struct m_IO_struct{
@@ -57,8 +60,10 @@ private:
     std::map<std::string, uint16_t> m_publish_on_event;
     ros_modbus_msgs::msg::Modbus m_msg_on_event;
     std::map<std::string, m_IO_struct> m_IO;
+    modbus_t *m_ctx;
 
-    int m_temp_value;
+    uint8_t m_temp_digit_value;
+    uint16_t m_temp_value;
     bool m_publish;
     bool m_connected{false};
     bool m_configOK;
@@ -69,6 +74,8 @@ private:
     std::string m_IO_as_str;
 
 //ROS components
+    rclcpp::Subscription<ros_modbus_msgs::msg::Modbus>::SharedPtr m_subscriber;
+    rclcpp::Publisher<ros_modbus_msgs::msg::Modbus>::SharedPtr m_publisher;
     rclcpp::TimerBase::SharedPtr m_reconnection_timer;
     rclcpp::TimerBase::SharedPtr m_publisher_timer;
     rclcpp::TimerBase::SharedPtr m_checker_timer;

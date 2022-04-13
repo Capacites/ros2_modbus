@@ -2,6 +2,7 @@
 
 using namespace std::chrono_literals;
 using namespace modbus_node;
+using ros_modbus_msgs::msg::Modbus;
 
 ModbusNode::ModbusNode(rclcpp::NodeOptions options)
     : Node("modbus_node", options)
@@ -14,13 +15,18 @@ ModbusNode::ModbusNode(rclcpp::NodeOptions options)
     m_msg_on_event.set__in_out(std::vector<std::string>());
     m_msg_on_event.set__values(std::vector<uint16_t>());
 
-   // m_checker_timer = this->create_wall_timer(1ms, std::bind(&ModbusNode::check_timer_callback, this));
+    m_checker_timer = this->create_wall_timer(1ms, std::bind(&ModbusNode::check_timer_callback, this));
+    m_reconnection_timer = this->create_wall_timer(1ms, std::bind(&ModbusNode::restart_connection, this));
+    m_reconnection_timer->cancel();
+
+    m_publisher = this->create_publisher<Modbus>("/ros_modbus/report", rclcpp::QoS(m_pub_queue_size));
+    m_subscriber = this->create_subscription<Modbus>("/ros_modbus/command", rclcpp::QoS(m_pub_queue_size), std::bind(&ModbusNode::subscriber_callback, this, std::placeholders::_1));
 
     //try {
        configure();
     //}
     //catch (...) {
-    //    RCLCPP_ERROR(get_logger(), "Configuration file not valid, please provide a valid configuration file");
+    //    RCLCPP_ERROR(get_logger(), "Configuration file not valid, please provide a valid configuration file"no);
     //}
 }
 
@@ -54,7 +60,7 @@ void ModbusNode::configure()
                 m_IO_temp.data_type = element->first.as<std::string>();
                 if(element2->second.IsScalar())
                 {
-                    m_IO_temp.address = element2->second.as<int>()-1;
+                    m_IO_temp.address = element2->second.as<int>();
                 }
                 else
                 {
@@ -74,7 +80,7 @@ void ModbusNode::configure()
                 m_IO_temp.data_type = element->first.as<std::string>();
                 if(element2->second.IsScalar())
                 {
-                    m_IO_temp.address = element2->second.as<int>()-1;
+                    m_IO_temp.address = element2->second.as<int>();
                 }
                 else
                 {
@@ -85,81 +91,95 @@ void ModbusNode::configure()
             }
         }
 
-        RCLCPP_INFO(get_logger(),"Configuring device %s with address %s and port %d", m_name.c_str(), m_address.c_str(), m_port);
-        RCLCPP_INFO(get_logger(),"Configuring device %s with IO %s", m_name.c_str(), m_IO_as_str.c_str());
-        m_configOK = verify();
-        if(m_configOK)
-        {
-            RCLCPP_INFO(get_logger(),"Connected to %s:%d", m_address.c_str(), m_port);
-            RCLCPP_INFO(get_logger(),"Configured %s successfully", m_name.c_str());
-            m_connected = true;
+        m_ctx = modbus_new_tcp(m_address.c_str(), m_port);
 
-        }
+        //RCLCPP_INFO(get_logger(),"Configuring device %s with address %s and port %d", m_name.c_str(), m_address.c_str(), m_port);
+        //m_connected = verify_connection();
+
+        RCLCPP_INFO(get_logger(),"Configuring device %s with IO %s", m_name.c_str(), m_IO_as_str.c_str());
+        m_configOK = verify_IO();
     }
 }
 
-bool ModbusNode::verify()
+bool ModbusNode::verify_connection()
 {
-    if( false)
+    modbus_close(m_ctx);
+    if (modbus_connect(m_ctx) == 0)
     {
-           RCLCPP_INFO(get_logger(),"%s:%d is not a valid server address or server is down", m_address.c_str(), m_port);
-           return false;
+        modbus_close(m_ctx);
+        RCLCPP_INFO(get_logger(),"Connected to %s:%s successfully", m_address.c_str(), m_port);
+        return true;
     }
     else
     {
-        for(auto &[key, value] : m_publish_on_event)
+        RCLCPP_WARN(get_logger(), "Connection to %s:%d failed, reconnecting", m_address.c_str(), m_port);
+        m_reconnection_timer->reset();
+        return false;
+    }
+
+
+}
+
+bool ModbusNode::verify_IO()
+{
+    for(auto &[key, value] : m_publish_on_event)
+    {
+        if(m_IO.find(key) == m_IO.end())
         {
-            if(m_IO.find(key) == m_IO.end())
-            {
-                RCLCPP_INFO(get_logger(), "I/O %s is not provided in configuration file", key.c_str());
-                return false;
-            }
-            else if(m_IO[key].data_type != "digital" && m_IO[key].type != "analog")
-            {
-                RCLCPP_INFO(get_logger(), "I/O %s is provided with incorrect I/O type (given %s expected digital or analog) in configuration file", key.c_str(), m_IO[key].type.c_str());
-                return false;
-            }
-            else if(m_IO[key].address == -1)
-            {
-                RCLCPP_INFO(get_logger(), "I/O %s is provided with no address in configuration file", key.c_str());
-                return false;
-            }
+            RCLCPP_INFO(get_logger(), "I/O %s is not provided in configuration file", key.c_str());
+            return false;
         }
-        for(auto &[key, value] : m_publish_on_timer)
+        else if(m_IO[key].data_type != "digital" && m_IO[key].type != "analog")
         {
-            if(m_IO.find(key) == m_IO.end())
-            {
-                RCLCPP_INFO(get_logger(), "I/O %s is not provided in configuration file", key.c_str());
-                return false;
-            }
-            else if(m_IO[key].data_type != "digital" && m_IO[key].type != "analog")
-            {
-                RCLCPP_INFO(get_logger(), "I/O %s is provided with incorrect I/O type (given %s expected digital or analog) in configuration file", key.c_str(), m_IO[key].type.c_str());
-                return false;
-            }
-            else if(m_IO[key].address == -1)
-            {
-                RCLCPP_INFO(get_logger(), "I/O %s is provided with no address in configuration file", key.c_str());
-                return false;
-            }
+            RCLCPP_INFO(get_logger(), "I/O %s is provided with incorrect I/O type (given %s expected digital or analog) in configuration file", key.c_str(), m_IO[key].type.c_str());
+            return false;
+        }
+        else if(m_IO[key].address == -1)
+        {
+            RCLCPP_INFO(get_logger(), "I/O %s is provided with no address in configuration file", key.c_str());
+            return false;
         }
     }
+    for(auto &[key, value] : m_publish_on_timer)
+    {
+        if(m_IO.find(key) == m_IO.end())
+        {
+            RCLCPP_INFO(get_logger(), "I/O %s is not provided in configuration file", key.c_str());
+            return false;
+        }
+        else if(m_IO[key].data_type != "digital" && m_IO[key].type != "analog")
+        {
+            RCLCPP_INFO(get_logger(), "I/O %s is provided with incorrect I/O type (given %s expected digital or analog) in configuration file", key.c_str(), m_IO[key].type.c_str());
+            return false;
+        }
+        else if(m_IO[key].address == -1)
+        {
+            RCLCPP_INFO(get_logger(), "I/O %s is provided with no address in configuration file", key.c_str());
+            return false;
+        }
+    }
+
+    RCLCPP_INFO(get_logger(),"Configuration of %s appears valid successfully", m_name.c_str());
     return true;
 }
 
 void ModbusNode::restart_connection()
 {
-    if(true)
+    modbus_free(m_ctx);
+    m_ctx = modbus_new_tcp(m_address.c_str(), m_port);
+
+    if(!m_connected && modbus_connect(m_ctx) == 0)
     {
         RCLCPP_INFO(get_logger(), "Reconnected to %s:%d", m_address.c_str(), m_port);
         m_connected = true;
         m_reconnection_timer->cancel();
+        modbus_close(m_ctx);
     }
 }
 
 void ModbusNode::check_timer_callback()
 {
-    if(m_configOK && m_connected) //TODO add connection check
+    if(m_configOK && m_connected && modbus_connect(m_ctx) == 0)
     {
         for(auto &[key, value] : m_publish_on_event)
         {
@@ -168,12 +188,90 @@ void ModbusNode::check_timer_callback()
                 if (m_IO[key].data_type == "digital")
                 {
                     try {
-
+                        modbus_read_input_bits(m_ctx, m_IO[key].address, 1, &m_temp_digit_value);
+                        m_temp_value = m_temp_digit_value;
                     } catch (...) {
-
+                        RCLCPP_ERROR(get_logger(), "Tried to read I/O %s and failed, skipping", key.c_str());
                     }
                 }
+                else if (m_IO[key].data_type == "analog")
+                {
+                    try {
+                        modbus_read_input_registers(m_ctx, m_IO[key].address, 1, &m_temp_value);
+                    } catch (...) {
+                        RCLCPP_ERROR(get_logger(), "Tried to read I/O %s and failed, skipping", key.c_str());
+                    }
+                }
+                else
+                {
+                    RCLCPP_WARN(get_logger(), "Unsupported input type for I/O %s, skipping", key.c_str());
+                }
             }
+            else if(m_IO[key].type == "outpu")
+            {
+                if (m_IO[key].data_type == "digital")
+                {
+                    try {
+                        modbus_read_input_bits(m_ctx, m_IO[key].address, 1, &m_temp_digit_value);
+                        m_temp_value = m_temp_digit_value;
+                    } catch (...) {
+                        RCLCPP_ERROR(get_logger(), "Tried to read I/O %s and failed, skipping", key.c_str());
+                    }
+                }
+                else if (m_IO[key].data_type == "analog")
+                {
+                    try {
+                        modbus_read_input_registers(m_ctx, m_IO[key].address, 1, &m_temp_value);
+                    } catch (...) {
+                        RCLCPP_ERROR(get_logger(), "Tried to read I/O %s and failed, skipping", key.c_str());
+                    }
+                }
+                else
+                {
+                    RCLCPP_WARN(get_logger(), "Unsupported output type for I/O %s, skipping", key.c_str());
+                }
+            }
+            else
+            {
+                RCLCPP_WARN(get_logger(), "I/O %s is not set as input nor output, skipping", key.c_str());
+            }
+            if(m_publish_on_event[key] != m_temp_value)
+            {
+                m_publish_on_event[key] = m_temp_value;
+                if(!m_publish)
+                {
+                    m_publish = true;
+                }
+            }
+        }
+
+        modbus_close(m_ctx);
+
+        if (m_publish)
+        {
+            m_msg_on_event.header.set__stamp(now());
+            m_msg_on_event.set__values(std::vector<uint16_t>());
+            m_msg_on_event.set__in_out(std::vector<std::string>());
+            for (auto &[key, value] : m_publish_on_event)
+            {
+                m_msg_on_event.in_out.push_back(key);
+                m_msg_on_event.values.push_back(value);
+            }
+            m_publisher->publish(m_msg_on_event);
+            m_publish = false;
+        }
+    }
+    else
+    {
+        if(!m_configOK)
+        {
+            RCLCPP_WARN(get_logger(), "Timer callback but configuration is not valid, reconfiguring");
+            configure();
+        }
+        else if(m_reconnection_timer->is_canceled())
+        {
+            RCLCPP_WARN(get_logger(), "Timer callback but connection to %s:%d lost, reconnecting", m_address.c_str(), m_port);
+            m_reconnection_timer.reset();
         }
     }
 }
@@ -183,6 +281,10 @@ void ModbusNode::publish_timer_callback()
 
 }
 
+void ModbusNode::subscriber_callback(ros_modbus_msgs::msg::Modbus::SharedPtr msg)
+{
+
+}
 
 int main(int argc, char** argv)
 {

@@ -148,7 +148,7 @@ class modbus_node(Node):
                             self.get_logger().error(f'Tried to read I/O {key} and failed, skipping')
 
                     else:
-                        self.get_logger().warn(f'Unsupported output type for I/O {key}, skipping')
+                        self.get_logger().warn(f'Unsupported input type for I/O {key}, skipping')
 
                 elif self.m_IO[key][0] == 'output':
 
@@ -170,7 +170,7 @@ class modbus_node(Node):
                 else:
                     self.get_logger().warn(f'I/O {key} is not set as input nor output, skipping')
 
-                if not self.m_publish and self.m_publish_on_event[key] != self.m_temp_value :
+                if self.m_publish_on_event[key] != self.m_temp_value :
                     self.m_publish_on_event[key] = self.m_temp_value
                     self.m_publish = True
 
