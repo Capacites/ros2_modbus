@@ -4,7 +4,9 @@ test_device:
 
   address: 172.21.176.51
   port: 502
-  publish_frequency: 10 #Hz 
+  
+  publish_rate: 10 #Hz 
+  refresh_rate: 100 #Hz 
       
   publish_on_timer: 
     - di_in_test1

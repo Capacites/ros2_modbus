@@ -40,6 +40,7 @@ private:
     void check_timer_callback();
     void publish_timer_callback();
     void subscriber_callback(ros_modbus_msgs::msg::Modbus::SharedPtr msg);
+    void publish_state(bool, int);
 
 //IO structure definition
     struct m_IO_struct{
@@ -67,8 +68,6 @@ private:
     std::map<std::string, uint16_t> m_publish_on_event;
     ros_modbus_msgs::msg::Modbus m_msg_on_event;
 
-    ros_modbus_msgs::msg::State m_state;
-
     std::map<std::string, uint16_t> m_IO;
     std::map<std::string, m_IO_struct> m_IO_map;
     std::set<std::string> m_IO_list;
@@ -82,20 +81,20 @@ private:
     uint16_t m_checker_temp_value;
     m_IO_struct m_IO_update_temp;
     m_IO_struct m_IO_sub_temp;
+    ros_modbus_msgs::msg::Modbus m_msg_recv_temp;
 
     bool m_publish;
     bool m_connected{false};
     bool m_configOK;
 
     m_IO_struct m_IO_temp;
-    std::string m_buffer;
     int m_buffer_size;
-    std::string m_IO_as_str;
 
 //ROS components
     rclcpp::Subscription<ros_modbus_msgs::msg::Modbus>::SharedPtr m_subscriber;
     rclcpp::Publisher<ros_modbus_msgs::msg::Modbus>::SharedPtr m_timer_publisher;
     rclcpp::Publisher<ros_modbus_msgs::msg::Modbus>::SharedPtr m_event_publisher;
+    rclcpp::Publisher<ros_modbus_msgs::msg::State>::SharedPtr m_state_publisher;
 
     rclcpp::TimerBase::SharedPtr m_publisher_timer;
     rclcpp::TimerBase::SharedPtr m_checker_timer;
