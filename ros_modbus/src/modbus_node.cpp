@@ -180,19 +180,23 @@ void ModbusNode::update_timer_callback()
     {
         for(auto key : m_IO_list)
         {
-            if(m_IO_map[key].type == "input")
+            m_IO_map_guard.lock();
+            m_IO_update_temp = m_IO_map[key];
+            m_IO_map_guard.unlock();
+
+            if(m_IO_update_temp.type == "input")
             {
-                if (m_IO_map[key].data_type == "digital")
+                if (m_IO_update_temp.data_type == "digital")
                 {
-                        if (modbus_read_input_bits(m_ctx, m_IO_map[key].address, 1, &m_temp_digit_value) == -1)
+                        if (modbus_read_input_bits(m_ctx, m_IO_update_temp.address, 1, &m_temp_digit_value) == -1)
                         {
                             throw MODBUS_EXCEPTION_SLAVE_OR_SERVER_FAILURE;
                         }
 
                 }
-                else if (m_IO_map[key].data_type == "analog")
+                else if (m_IO_update_temp.data_type == "analog")
                 {
-                        if (modbus_read_input_registers(m_ctx, m_IO_map[key].address, 1, &m_update_temp_value) == -1)
+                        if (modbus_read_input_registers(m_ctx, m_IO_update_temp.address, 1, &m_update_temp_value) == -1)
                         {
                             throw MODBUS_EXCEPTION_SLAVE_OR_SERVER_FAILURE;
                         }
@@ -202,19 +206,19 @@ void ModbusNode::update_timer_callback()
                     RCLCPP_WARN(get_logger(), "Unsupported input type for I/O %s, skipping", key.c_str());
                 }
             }
-            else if(m_IO_map[key].type == "output")
+            else if(m_IO_update_temp.type == "output")
             {
-                if (m_IO_map[key].data_type == "digital")
+                if (m_IO_update_temp.data_type == "digital")
                 {
-                        if (modbus_read_input_bits(m_ctx, m_IO_map[key].address, 1, &m_temp_digit_value) == -1)
+                        if (modbus_read_input_bits(m_ctx, m_IO_update_temp.address, 1, &m_temp_digit_value) == -1)
                         {
                             throw MODBUS_EXCEPTION_SLAVE_OR_SERVER_FAILURE;
                         }
                         m_update_temp_value = m_temp_digit_value;
                 }
-                else if (m_IO_map[key].data_type == "analog")
+                else if (m_IO_update_temp.data_type == "analog")
                 {
-                        if (modbus_read_input_registers(m_ctx, m_IO_map[key].address, 1, &m_update_temp_value) == -1)
+                        if (modbus_read_input_registers(m_ctx, m_IO_update_temp.address, 1, &m_update_temp_value) == -1)
                         {
                             throw MODBUS_EXCEPTION_SLAVE_OR_SERVER_FAILURE;
                         }

@@ -4,6 +4,7 @@
 //ROS include
 #include <rclcpp/rclcpp.hpp>
 #include <ros_modbus_msgs/msg/modbus.hpp>
+#include <ros_modbus_msgs/msg/state.hpp>
 
 //Modbus include
 #include <modbus/modbus-tcp.h>
@@ -56,13 +57,17 @@ private:
     bool m_debug = declare_parameter<bool>("debug", false);
 
 //Node member variables
+
     std::string m_address;
     int m_port;
+
     std::map<std::string, uint16_t> m_publish_on_timer;
     ros_modbus_msgs::msg::Modbus m_msg_on_timer;
 
     std::map<std::string, uint16_t> m_publish_on_event;
     ros_modbus_msgs::msg::Modbus m_msg_on_event;
+
+    ros_modbus_msgs::msg::State m_state;
 
     std::map<std::string, uint16_t> m_IO;
     std::map<std::string, m_IO_struct> m_IO_map;
