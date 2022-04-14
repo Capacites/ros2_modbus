@@ -16,6 +16,8 @@
 #include <string>
 #include <vector>
 #include <map>
+#include <mutex>
+#include <set>
 
 using namespace std::chrono_literals;
 
@@ -33,6 +35,7 @@ private:
     bool verify_IO();
     bool verify_connection();
     void restart_connection();
+    void update_timer_callback();
     void check_timer_callback();
     void publish_timer_callback();
     void subscriber_callback(ros_modbus_msgs::msg::Modbus::SharedPtr msg);
@@ -57,14 +60,24 @@ private:
     int m_port;
     std::map<std::string, uint16_t> m_publish_on_timer;
     ros_modbus_msgs::msg::Modbus m_msg_on_timer;
+
     std::map<std::string, uint16_t> m_publish_on_event;
     ros_modbus_msgs::msg::Modbus m_msg_on_event;
-    std::map<std::string, uint16_t> m_IO_map;
-    std::map<std::string, m_IO_struct> m_IO;
+
+    std::map<std::string, uint16_t> m_IO;
+    std::map<std::string, m_IO_struct> m_IO_map;
+    std::set<std::string> m_IO_list;
+
     modbus_t *m_ctx;
+    std::mutex m_IO_guard;
+    std::mutex m_IO_map_guard;
 
     uint8_t m_temp_digit_value;
-    uint16_t m_temp_value;
+    uint16_t m_update_temp_value;
+    uint16_t m_checker_temp_value;
+    m_IO_struct m_IO_update_temp;
+    m_IO_struct m_IO_sub_temp;
+
     bool m_publish;
     bool m_connected{false};
     bool m_configOK;
@@ -76,9 +89,12 @@ private:
 
 //ROS components
     rclcpp::Subscription<ros_modbus_msgs::msg::Modbus>::SharedPtr m_subscriber;
-    rclcpp::Publisher<ros_modbus_msgs::msg::Modbus>::SharedPtr m_publisher;
+    rclcpp::Publisher<ros_modbus_msgs::msg::Modbus>::SharedPtr m_timer_publisher;
+    rclcpp::Publisher<ros_modbus_msgs::msg::Modbus>::SharedPtr m_event_publisher;
+
     rclcpp::TimerBase::SharedPtr m_publisher_timer;
     rclcpp::TimerBase::SharedPtr m_checker_timer;
+    rclcpp::TimerBase::SharedPtr m_update_timer;
 
    };
 }

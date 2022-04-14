@@ -180,11 +180,15 @@ void ModbusNode::update_timer_callback()
     {
         for(auto key : m_IO_list)
         {
-            if(m_IO_map[key].type == "input")
+            m_IO_map_guard.lock();
+            m_IO_update_temp = m_IO_map[key];
+            m_IO_map_guard.unlock();
+            
+            if(m_IO_update_temp.type == "input")
             {
-                if (m_IO_map[key].data_type == "digital")
+                if (m_IO_update_temp.data_type == "digital")
                 {
-                        if (modbus_read_input_bits(m_ctx, m_IO_map[key].address, 1, &m_temp_digit_value) == -1)
+                        if (modbus_read_input_bits(m_ctx, m_IO_update_temp.address, 1, &m_temp_digit_value) == -1)
                         {
                             throw MODBUS_EXCEPTION_SLAVE_OR_SERVER_FAILURE;
                         }
