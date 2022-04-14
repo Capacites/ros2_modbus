@@ -17,9 +17,6 @@ ModbusNode::ModbusNode(rclcpp::NodeOptions options)
 
     m_checker_timer = this->create_wall_timer(100ms, std::bind(&ModbusNode::check_timer_callback, this));
 
-    m_reconnection_timer = this->create_wall_timer(100ms, std::bind(&ModbusNode::restart_connection, this));
-    m_reconnection_timer->cancel();
-
     m_publisher = this->create_publisher<Modbus>("/ros_modbus/report", rclcpp::QoS(m_pub_queue_size));
     m_subscriber = this->create_subscription<Modbus>("/ros_modbus/command", rclcpp::QoS(m_pub_queue_size), std::bind(&ModbusNode::subscriber_callback, this, std::placeholders::_1));
 
@@ -106,17 +103,14 @@ void ModbusNode::configure()
 
 bool ModbusNode::verify_connection()
 {
-    modbus_close(m_ctx);
     if (modbus_connect(m_ctx) == 0)
     {
-        modbus_close(m_ctx);
         RCLCPP_INFO(get_logger(),"Connected to %s:%d successfully", m_address.c_str(), m_port);
         return true;
     }
     else
     {
         RCLCPP_WARN(get_logger(), "Connection to %s:%d failed, reconnecting", m_address.c_str(), m_port);
-        m_reconnection_timer->reset();
         return false;
     }
 
@@ -168,43 +162,37 @@ bool ModbusNode::verify_IO()
 
 void ModbusNode::restart_connection()
 {
-    modbus_free(m_ctx);
-    m_ctx = modbus_new_tcp(m_address.c_str(), m_port);
-
-    if(!m_connected && modbus_connect(m_ctx) == 0)
+    while(modbus_connect(m_ctx) != 0)
     {
-        RCLCPP_INFO(get_logger(), "Reconnected to %s:%d", m_address.c_str(), m_port);
-        m_connected = true;
-        m_reconnection_timer->cancel();
-        modbus_close(m_ctx);
     }
+    RCLCPP_INFO(get_logger(), "Reconnected to %s:%d", m_address.c_str(), m_port);
+    m_connected = true;
 }
 
 void ModbusNode::check_timer_callback()
 {
     m_checker_timer->cancel();
-    if(m_configOK && m_connected && modbus_connect(m_ctx) == 0)
+    try
     {
-        for(auto &[key, value] : m_publish_on_event)
+        m_IO_map_guard.lock();
+        for(auto &[key, value] : m_IO_map)
         {
             if(m_IO[key].type == "input")
             {
                 if (m_IO[key].data_type == "digital")
                 {
-                    try {
-                        modbus_read_input_bits(m_ctx, m_IO[key].address, 1, &m_temp_digit_value);
-                        m_temp_value = m_temp_digit_value;
-                    } catch (...) {
-                        RCLCPP_ERROR(get_logger(), "Tried to read I/O %s and failed, skipping", key.c_str());
-                    }
+                        if (modbus_read_input_bits(m_ctx, m_IO[key].address, 1, &m_temp_digit_value) == -1)
+                        {
+                            throw MODBUS_EXCEPTION_SLAVE_OR_SERVER_FAILURE;
+                        }
+
                 }
                 else if (m_IO[key].data_type == "analog")
                 {
-                    try {
-                        modbus_read_input_registers(m_ctx, m_IO[key].address, 1, &m_temp_value);
-                    } catch (...) {
-                        RCLCPP_ERROR(get_logger(), "Tried to read I/O %s and failed, skipping", key.c_str());
-                    }
+                        if (modbus_read_input_registers(m_ctx, m_IO[key].address, 1, &m_temp_value) == -1)
+                        {
+                            throw MODBUS_EXCEPTION_SLAVE_OR_SERVER_FAILURE;
+                        }
                 }
                 else
                 {
@@ -215,20 +203,18 @@ void ModbusNode::check_timer_callback()
             {
                 if (m_IO[key].data_type == "digital")
                 {
-                    try {
-                        modbus_read_input_bits(m_ctx, m_IO[key].address, 1, &m_temp_digit_value);
+                        if (modbus_read_input_bits(m_ctx, m_IO[key].address, 1, &m_temp_digit_value) == -1)
+                        {
+                            throw MODBUS_EXCEPTION_SLAVE_OR_SERVER_FAILURE;
+                        }
                         m_temp_value = m_temp_digit_value;
-                    } catch (...) {
-                        RCLCPP_ERROR(get_logger(), "Tried to read I/O %s and failed, skipping", key.c_str());
-                    }
                 }
                 else if (m_IO[key].data_type == "analog")
                 {
-                    try {
-                        modbus_read_input_registers(m_ctx, m_IO[key].address, 1, &m_temp_value);
-                    } catch (...) {
-                        RCLCPP_ERROR(get_logger(), "Tried to read I/O %s and failed, skipping", key.c_str());
-                    }
+                        if (modbus_read_input_registers(m_ctx, m_IO[key].address, 1, &m_temp_value) == -1)
+                        {
+                            throw MODBUS_EXCEPTION_SLAVE_OR_SERVER_FAILURE;
+                        }
                 }
                 else
                 {
@@ -249,8 +235,6 @@ void ModbusNode::check_timer_callback()
             }
         }
 
-        modbus_close(m_ctx);
-
         if (m_publish)
         {
             m_msg_on_event.header.set__stamp(now());
@@ -264,18 +248,19 @@ void ModbusNode::check_timer_callback()
             m_publisher->publish(m_msg_on_event);
             m_publish = false;
         }
+        m_IO_map_guard.unlock();
     }
-    else
+    catch(...)
     {
         if(!m_configOK)
         {
             RCLCPP_WARN(get_logger(), "Timer callback but configuration is not valid, reconfiguring");
             configure();
         }
-        else if(m_reconnection_timer->is_canceled())
+        else
         {
-            RCLCPP_WARN(get_logger(), "Timer callback but connection to  lost, reconnecting");
-            m_reconnection_timer->reset();
+            RCLCPP_WARN(get_logger(), "Connection to %s:%d lost, reconnecting", m_address.c_str(), m_port);
+            restart_connection();
         }
     }
     m_checker_timer->reset();

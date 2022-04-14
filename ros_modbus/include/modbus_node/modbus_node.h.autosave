@@ -16,6 +16,7 @@
 #include <string>
 #include <vector>
 #include <map>
+#include <mutex>
 
 using namespace std::chrono_literals;
 
@@ -57,11 +58,14 @@ private:
     int m_port;
     std::map<std::string, uint16_t> m_publish_on_timer;
     ros_modbus_msgs::msg::Modbus m_msg_on_timer;
+    
     std::map<std::string, uint16_t> m_publish_on_event;
     ros_modbus_msgs::msg::Modbus m_msg_on_event;
+    
     std::map<std::string, uint16_t> m_IO_map;
     std::map<std::string, m_IO_struct> m_IO;
     modbus_t *m_ctx;
+    std::mutex m_IO_map_guard;
 
     uint8_t m_temp_digit_value;
     uint16_t m_temp_value;
