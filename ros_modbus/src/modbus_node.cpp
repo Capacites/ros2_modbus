@@ -23,13 +23,7 @@ ModbusNode::ModbusNode(rclcpp::NodeOptions options)
     m_msg_on_event.set__in_out(std::vector<std::string>());
     m_msg_on_event.set__values(std::vector<uint16_t>());
 
-    m_checker_timer = this->create_wall_timer(1s, [this](){check_timer_callback();});
-    m_checker_timer->cancel();
-
-    m_timer_publisher = this->create_publisher<ros_modbus_msgs::msg::Modbus>("/ros_modbus/report_timer", rclcpp::QoS(m_pub_queue_size));
-    m_event_publisher = this->create_publisher<ros_modbus_msgs::msg::Modbus>("/ros_modbus/report_event", rclcpp::QoS(m_pub_queue_size));
     m_state_publisher = this->create_publisher<ros_modbus_msgs::msg::State>("/ros_modbus/state", rclcpp::QoS(m_pub_queue_size));
-    m_subscriber = this->create_subscription<ros_modbus_msgs::msg::Modbus>("/ros_modbus/command", rclcpp::QoS(m_pub_queue_size), [this](ros_modbus_msgs::msg::Modbus::SharedPtr msg){std::cout << "1" << std::endl;subscriber_callback(msg);});
 
     try {
         publish_state(false, INITIALIZING);
@@ -39,6 +33,12 @@ ModbusNode::ModbusNode(rclcpp::NodeOptions options)
         RCLCPP_ERROR(get_logger(), "Configuration file not valid, please provide a valid configuration file");
         publish_state(false, INVALID_CONFIGURATION_FILE);
     }
+    m_timer_publisher = this->create_publisher<ros_modbus_msgs::msg::Modbus>("/ros_modbus/report_timer", rclcpp::QoS(m_pub_queue_size));
+    m_event_publisher = this->create_publisher<ros_modbus_msgs::msg::Modbus>("/ros_modbus/report_event", rclcpp::QoS(m_pub_queue_size));
+    m_subscriber = this->create_subscription<ros_modbus_msgs::msg::Modbus>("/ros_modbus/command", rclcpp::QoS(m_pub_queue_size), [this](ros_modbus_msgs::msg::Modbus::SharedPtr msg){subscriber_callback(msg);});
+
+    m_checker_timer = this->create_wall_timer(0s, [this](){std::cout << "1" << std::endl;check_timer_callback();});
+    m_checker_timer->cancel();
 }
 
 void ModbusNode::publish_state(bool state, int state_code)
@@ -58,9 +58,6 @@ void ModbusNode::configure()
     {
         m_address = config[m_name]["address"].as<std::string>();
         m_port = config[m_name]["port"].as<int>();
-
-        m_publisher_timer = this->create_wall_timer(std::chrono::milliseconds(int(1000./config[m_name]["publish_rate"].as<int>())), [this](){publish_timer_callback();});
-        m_update_timer = this->create_wall_timer(std::chrono::milliseconds(int(1000./config[m_name]["refresh_rate"].as<int>())), [this](){update_timer_callback();});
 
         for (const auto &iter : config[m_name]["publish_on_timer"].as<std::vector<std::string>>())
         {
@@ -112,8 +109,6 @@ void ModbusNode::configure()
 
         m_ctx = modbus_new_tcp(m_address.c_str(), m_port);
 
-        m_checker_timer->reset();
-
         RCLCPP_INFO(get_logger(),"Configuring device %s with address %s and port %d", m_name.c_str(), m_address.c_str(), m_port);
         m_connected = verify_connection();
 
@@ -131,6 +126,9 @@ void ModbusNode::configure()
         {
             publish_state(true, NO_ISSUE);
         }
+
+        m_publisher_timer = this->create_wall_timer(std::chrono::milliseconds(int(1000./config[m_name]["publish_rate"].as<int>())), [this](){publish_timer_callback();});
+        m_update_timer = this->create_wall_timer(std::chrono::milliseconds(int(1000./config[m_name]["refresh_rate"].as<int>())), [this](){update_timer_callback();});
 
     }
 }
@@ -196,10 +194,12 @@ bool ModbusNode::verify_IO()
 
 void ModbusNode::restart_connection()
 {
+    m_ctx_guard.lock();
     modbus_close(m_ctx);
     while(modbus_connect(m_ctx) == -1)
     {
     }
+    m_ctx_guard.unlock();
     RCLCPP_INFO(get_logger(), "Reconnected to %s:%d", m_address.c_str(), m_port);
     m_connected = true;  
     publish_state(true, NO_ISSUE);
@@ -285,7 +285,6 @@ void ModbusNode::update_timer_callback()
             m_IO[key] = m_update_temp_value;
             m_IO_guard.unlock();
         }
-        m_checker_timer->execute_callback();
     }
     catch(...)
     {
@@ -302,6 +301,7 @@ void ModbusNode::update_timer_callback()
             restart_connection();
         }
     }
+    m_checker_timer->reset();
     m_update_timer->reset();
 }
 
@@ -324,6 +324,7 @@ void ModbusNode::publish_timer_callback()
 
 void ModbusNode::check_timer_callback()
 {
+    m_checker_timer->cancel();
     m_publish = false;
     for(auto &[key, value] : m_publish_on_event)
     {
@@ -358,9 +359,7 @@ void ModbusNode::check_timer_callback()
 
 void ModbusNode::subscriber_callback(ros_modbus_msgs::msg::Modbus::SharedPtr msg)
 {
-    m_cout +=1;
-    std::cout << m_cout << std::endl;
-    for(int iter=0; iter <= int(size(m_msg_recv_temp.in_out)); iter++)
+    for(int iter=0; iter < msg->in_out.size(); iter++)
     {
         bool result;
         try {

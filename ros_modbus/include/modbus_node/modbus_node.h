@@ -83,7 +83,6 @@ private:
     uint16_t m_checker_temp_value;
     m_IO_struct m_IO_update_temp;
     m_IO_struct m_IO_sub_temp;
-    ros_modbus_msgs::msg::Modbus m_msg_recv_temp;
 
     bool m_publish;
     bool m_connected{false};
