@@ -29,7 +29,7 @@ ModbusNode::ModbusNode(rclcpp::NodeOptions options)
     m_timer_publisher = this->create_publisher<ros_modbus_msgs::msg::Modbus>("/ros_modbus/report_timer", rclcpp::QoS(m_pub_queue_size));
     m_event_publisher = this->create_publisher<ros_modbus_msgs::msg::Modbus>("/ros_modbus/report_event", rclcpp::QoS(m_pub_queue_size));
     m_state_publisher = this->create_publisher<ros_modbus_msgs::msg::State>("/ros_modbus/state", rclcpp::QoS(m_pub_queue_size));
-    m_subscriber = this->create_subscription<ros_modbus_msgs::msg::Modbus>("/ros_modbus/command", rclcpp::QoS(m_pub_queue_size), [this](ros_modbus_msgs::msg::Modbus::SharedPtr msg){subscriber_callback(msg);});
+    m_subscriber = this->create_subscription<ros_modbus_msgs::msg::Modbus>("/ros_modbus/command", rclcpp::QoS(m_pub_queue_size), [this](ros_modbus_msgs::msg::Modbus::SharedPtr msg){std::cout << "1" << std::endl;subscriber_callback(msg);});
 
     try {
         publish_state(false, INITIALIZING);
@@ -59,8 +59,8 @@ void ModbusNode::configure()
         m_address = config[m_name]["address"].as<std::string>();
         m_port = config[m_name]["port"].as<int>();
 
-        m_publisher_timer = this->create_wall_timer(std::chrono::seconds(int(1./config[m_name]["publish_rate"].as<int>())), [this](){publish_timer_callback();});
-        m_update_timer = this->create_wall_timer(std::chrono::seconds(int(1./config[m_name]["refresh_rate"].as<int>())), [this](){update_timer_callback();});
+        m_publisher_timer = this->create_wall_timer(std::chrono::milliseconds(int(1000./config[m_name]["publish_rate"].as<int>())), [this](){publish_timer_callback();});
+        m_update_timer = this->create_wall_timer(std::chrono::milliseconds(int(1000./config[m_name]["refresh_rate"].as<int>())), [this](){update_timer_callback();});
 
         for (const auto &iter : config[m_name]["publish_on_timer"].as<std::vector<std::string>>())
         {
@@ -207,11 +207,12 @@ void ModbusNode::restart_connection()
 
 void ModbusNode::update_timer_callback()
 {
-    m_checker_timer->cancel();
+    m_update_timer->cancel();
     try
     {
         for(auto key : m_IO_list)
         {
+            bool result;
             m_IO_map_guard.lock();
             m_IO_update_temp = m_IO_map[key];
             m_IO_map_guard.unlock();
@@ -220,16 +221,22 @@ void ModbusNode::update_timer_callback()
             {
                 if (m_IO_update_temp.data_type == "digital")
                 {
-                        if (modbus_read_input_bits(m_ctx, m_IO_update_temp.address, 1, &m_temp_digit_value) == -1)
-                        {
-                            throw MODBUS_EXCEPTION_SLAVE_OR_SERVER_FAILURE;
-                        }
+                    m_ctx_guard.lock();
+                    result = modbus_read_input_bits(m_ctx, m_IO_update_temp.address, 1, &m_temp_digit_value) == -1;
+                    m_ctx_guard.unlock();
+                    if (result)
+                    {
+                        throw MODBUS_EXCEPTION_SLAVE_OR_SERVER_FAILURE;
+                    }
 
                 }
                 else if (m_IO_update_temp.data_type == "analog")
                 {
-                        if (modbus_read_input_registers(m_ctx, m_IO_update_temp.address, 1, &m_update_temp_value) == -1)
-                        {
+                    m_ctx_guard.lock();
+                    result = modbus_read_input_registers(m_ctx, m_IO_update_temp.address, 1, &m_update_temp_value) == -1;
+                    m_ctx_guard.unlock();
+                    if (result)
+                    {
                             throw MODBUS_EXCEPTION_SLAVE_OR_SERVER_FAILURE;
                         }
                 }
@@ -243,18 +250,24 @@ void ModbusNode::update_timer_callback()
             {
                 if (m_IO_update_temp.data_type == "digital")
                 {
-                        if (modbus_read_input_bits(m_ctx, m_IO_update_temp.address, 1, &m_temp_digit_value) == -1)
-                        {
-                            throw MODBUS_EXCEPTION_SLAVE_OR_SERVER_FAILURE;
-                        }
-                        m_update_temp_value = m_temp_digit_value;
+                    m_ctx_guard.lock();
+                    result = modbus_read_input_bits(m_ctx, m_IO_update_temp.address, 1, &m_temp_digit_value) == -1;
+                    m_ctx_guard.unlock();
+                    if (result)
+                    {
+                        throw MODBUS_EXCEPTION_SLAVE_OR_SERVER_FAILURE;
+                    }
+                    m_update_temp_value = m_temp_digit_value;
                 }
                 else if (m_IO_update_temp.data_type == "analog")
                 {
-                        if (modbus_read_input_registers(m_ctx, m_IO_update_temp.address, 1, &m_update_temp_value) == -1)
-                        {
-                            throw MODBUS_EXCEPTION_SLAVE_OR_SERVER_FAILURE;
-                        }
+                    m_ctx_guard.lock();
+                    result = modbus_read_input_registers(m_ctx, m_IO_update_temp.address, 1, &m_update_temp_value) == -1;
+                    m_ctx_guard.unlock();
+                    if (result)
+                    {
+                        throw MODBUS_EXCEPTION_SLAVE_OR_SERVER_FAILURE;
+                    }
                 }
                 else
                 {
@@ -289,7 +302,7 @@ void ModbusNode::update_timer_callback()
             restart_connection();
         }
     }
-    m_checker_timer->reset();
+    m_update_timer->reset();
 }
 
 void ModbusNode::publish_timer_callback()
@@ -345,48 +358,58 @@ void ModbusNode::check_timer_callback()
 
 void ModbusNode::subscriber_callback(ros_modbus_msgs::msg::Modbus::SharedPtr msg)
 {
-        for(int iter=0; iter <= int(size(m_msg_recv_temp.in_out)); iter++)
-        {
-            //try {
-                auto key = msg->in_out[iter];
-                auto value = msg->values[iter];
-                m_IO_map_guard.lock();
-                m_IO_sub_temp = m_IO_map[key];
-                m_IO_map_guard.unlock();
-                if(m_IO_sub_temp.type == "input")
+    m_cout +=1;
+    std::cout << m_cout << std::endl;
+    for(int iter=0; iter <= int(size(m_msg_recv_temp.in_out)); iter++)
+    {
+        bool result;
+        try {
+            auto key = msg->in_out[iter];
+            auto value = msg->values[iter];
+            m_IO_map_guard.lock();
+            m_IO_sub_temp = m_IO_map[key];
+            m_IO_map_guard.unlock();
+            if(m_IO_sub_temp.type == "input")
+            {
+                RCLCPP_WARN(get_logger(), "I/O %s is configured as input, can't write here, skipping", key.c_str());
+                publish_state(false, INVALID_IO_TO_WRITE);
+            }
+            else if(m_IO_sub_temp.type == "output")
+            {
+                if (m_IO_sub_temp.data_type == "digital")
                 {
-                    RCLCPP_WARN(get_logger(), "I/O %s is configured as input, can't write here, skipping", key.c_str());            
-                    publish_state(false, INVALID_IO_TO_WRITE);
+                    m_ctx_guard.lock();
+                    result = modbus_write_bit(m_ctx, m_IO_sub_temp.address, value) == -1;
+                    m_ctx_guard.unlock();
+                    if (result)
+                    {
+                        throw MODBUS_EXCEPTION_SLAVE_OR_SERVER_FAILURE;
+                    }
+                    m_update_temp_value = m_temp_digit_value;
                 }
-                else if(m_IO_sub_temp.type == "output")
+                else if (m_IO_sub_temp.data_type == "analog")
                 {
-                    if (m_IO_sub_temp.data_type == "digital")
+                    m_ctx_guard.lock();
+                    result = modbus_write_register(m_ctx, m_IO_sub_temp.address, value) == -1;
+                    m_ctx_guard.unlock();
+                    if (result)
                     {
-                            if (modbus_write_bit(m_ctx, m_IO_sub_temp.address, value) == -1)
-                            {
-                                throw MODBUS_EXCEPTION_SLAVE_OR_SERVER_FAILURE;
-                            }
-                            m_update_temp_value = m_temp_digit_value;
-                    }
-                    else if (m_IO_sub_temp.data_type == "analog")
-                    {
-                            if (modbus_write_register(m_ctx, m_IO_sub_temp.address, value) == -1)
-                            {
-                                throw MODBUS_EXCEPTION_SLAVE_OR_SERVER_FAILURE;
-                            }
-                    }
-                    else
-                    {
-                        RCLCPP_WARN(get_logger(), "Unsupported output type for I/O %s, skipping", key.c_str());
-                        publish_state(false, INVALID_IO_DATA_TYPE);
+                        throw MODBUS_EXCEPTION_SLAVE_OR_SERVER_FAILURE;
                     }
                 }
+                else
+                {
+                    RCLCPP_WARN(get_logger(), "Unsupported output type for I/O %s, skipping", key.c_str());
+                    publish_state(false, INVALID_IO_DATA_TYPE);
+                }
+            }
 
-            //} catch (...) {
+        } catch (...) {
 
-            //}
+            RCLCPP_WARN(get_logger(), "Unsupported output type for I/O , skipping");
         }
     }
+ }
 
 
 int main(int argc, char** argv)

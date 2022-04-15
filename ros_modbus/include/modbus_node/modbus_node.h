@@ -75,6 +75,8 @@ private:
     modbus_t *m_ctx;
     std::mutex m_IO_guard;
     std::mutex m_IO_map_guard;
+    std::mutex m_ctx_guard;
+    int m_cout = 0;
 
     uint8_t m_temp_digit_value;
     uint16_t m_update_temp_value;
