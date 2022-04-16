@@ -2,15 +2,6 @@
 
 #include <modbus_node/modbus_node.h>
 
-#define NO_ISSUE 0
-#define INITIALIZING 1
-#define NOT_CONNECTED 2
-#define INVALID_CONFIGURATION_FILE 3
-#define INVALID_IO_TYPE 4
-#define INVALID_IO_DATA_TYPE 5
-#define INVALID_IO_KEY 6
-#define INVALID_IO_TO_WRITE 7
-
 using namespace std::chrono_literals;
 using namespace modbus_node;
 
@@ -201,14 +192,16 @@ void ModbusNode::restart_connection()
 {
     m_ctx_guard.lock();
     modbus_close(m_ctx);
-    m_ctx_guard.unlock();
     while(modbus_connect(m_ctx) == -1)
     {
+        m_ctx_guard.unlock();
         sleep(1);
         /**
          * @TODO find a way to make only this thread sleep
          */
+        m_ctx_guard.lock();
     }
+    m_ctx_guard.unlock();
     RCLCPP_INFO(get_logger(), "Reconnected to %s:%d", m_address.c_str(), m_port);
     m_connected = true;  
     publish_state(true, NO_ISSUE);
