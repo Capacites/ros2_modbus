@@ -8,10 +8,11 @@ using namespace modbus_node;
 ModbusNode::ModbusNode(rclcpp::NodeOptions options)
     : Node("modbus_node", options)
 {
+    // configuration of subscriber with it's callback group
     m_sub_option.callback_group = mp_callback_group_publisher;
-
     mp_subscriber = this->create_subscription<ros_modbus_msgs::msg::Modbus>("/ros_modbus/command", rclcpp::QoS(m_pub_queue_size), [this](ros_modbus_msgs::msg::Modbus::SharedPtr msg){subscriber_callback(msg);}, m_sub_option);
 
+    // initializing messages
     m_msg_on_timer.header.set__frame_id(m_name);
     m_msg_on_timer.set__in_out(std::vector<std::string>());
     m_msg_on_timer.set__values(std::vector<uint16_t>());
@@ -20,7 +21,7 @@ ModbusNode::ModbusNode(rclcpp::NodeOptions options)
     m_msg_on_event.set__in_out(std::vector<std::string>());
     m_msg_on_event.set__values(std::vector<uint16_t>());
 
-    publish_state(false, INITIALIZING); // Currently not working, it appears that publisher is not yet fully initialized at this staged
+    publish_state(false, INITIALIZING); // Currently not working, it appears that publisher is not fully initialized at this staged
 
     try
     {
