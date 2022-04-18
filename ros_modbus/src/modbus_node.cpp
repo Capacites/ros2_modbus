@@ -1,4 +1,9 @@
 // -*- lsst-c++ -*-
+/**
+ * @file modbus_node.cpp
+ *
+ * @brief modbus_node functions definition
+ */
 
 #include <modbus_node/modbus_node.h>
 
@@ -25,13 +30,14 @@ ModbusNode::ModbusNode(rclcpp::NodeOptions options)
 
     try
     {
-        configure();
+        configure(); //attempt to configure
     }
     catch (...) {
         RCLCPP_ERROR(get_logger(), "Configuration file not valid, please provide a valid configuration file");
         publish_state(false, INVALID_CONFIGURATION_FILE);
     }
 
+    // assigning timers to threads and put them to sleep
     mp_checker_timer = this->create_wall_timer(0s, [this](){check_timer_callback();}, mp_callback_group_checker);
     mp_checker_timer->cancel();
     mp_reconnection_timer = this->create_wall_timer(0s, [this](){restart_connection();}, mp_callback_group_reconnection);
@@ -51,30 +57,35 @@ void ModbusNode::publish_state(bool state, int state_code)
 void ModbusNode::configure()
 {
     YAML::Node config = YAML::LoadFile(m_YAML_config_file);
-    if(config[m_name])
+    if(config[m_name]) // We need our device description
     {
+        // configuring Modbus device context
         m_address = config[m_name]["address"].as<std::string>();
         m_port = config[m_name]["port"].as<int>();
+        m_ctx = modbus_new_tcp(m_address.c_str(), m_port);
 
+        // Creating map of IO to publish on timer
         for (const auto &iter : config[m_name]["publish_on_timer"].as<std::vector<std::string>>())
         {
             m_publish_on_timer.insert({iter, 0});
             m_IO_list.insert(iter);
         }
 
+        // Creating map of IO to publish on event
         for (const auto &iter : config[m_name]["publish_on_event"].as<std::vector<std::string>>())
         {
             m_publish_on_event.insert({iter, 0});
             m_IO_list.insert(iter);
         }
 
+        // Construct IO structure for inputs, update map with IO name as key for it's structure
         for(YAML::const_iterator element=config[m_name]["input"].begin();element!=config[m_name]["input"].end();++element)
         {
             for(YAML::const_iterator element2=element->second.begin();element2!=element->second.end();++element2)
             {
                 m_IO_temp.type = "input";
                 m_IO_temp.data_type = element->first.as<std::string>();
-                if(element2->second.IsScalar())
+                if(element2->second.IsScalar()) // Prevent substracting one to empty address
                 {
                     m_IO_temp.address = element2->second.as<int>()-1;
                 }
@@ -86,13 +97,14 @@ void ModbusNode::configure()
             }
         }
 
+        // Construct IO structure for outputs, update map with IO name as key for it's structure
         for(YAML::const_iterator element=config[m_name]["output"].begin();element!=config[m_name]["output"].end();++element)
         {
             for(YAML::const_iterator element2=element->second.begin();element2!=element->second.end();++element2)
             {
                 m_IO_temp.type = "output";
                 m_IO_temp.data_type = element->first.as<std::string>();
-                if(element2->second.IsScalar())
+                if(element2->second.IsScalar()) // Prevent substracting one to empty address
                 {
                     m_IO_temp.address = element2->second.as<int>()-1;
                 }
@@ -104,13 +116,17 @@ void ModbusNode::configure()
             }
         }
 
-        m_ctx = modbus_new_tcp(m_address.c_str(), m_port);
-
         RCLCPP_INFO(get_logger(),"Configuring device %s with address %s and port %d", m_name.c_str(), m_address.c_str(), m_port);
         m_connected = verify_connection();
 
         RCLCPP_INFO(get_logger(),"Verifying device %s's IO", m_name.c_str());
         m_configOK = verify_IO();
+
+        // Configure timers with desired rate
+        mp_publisher_timer = this->create_wall_timer(std::chrono::milliseconds(int(1000./config[m_name]["publish_rate"].as<int>())), [this](){publish_timer_callback();}, mp_callback_group_publisher);
+        mp_update_timer = this->create_wall_timer(std::chrono::milliseconds(int(1000./config[m_name]["refresh_rate"].as<int>())), [this](){update_timer_callback();}, mp_callback_group_update);
+
+        // publish updated state
         if(!m_configOK)
         {
             publish_state(false, INVALID_CONFIGURATION_FILE);
@@ -123,9 +139,6 @@ void ModbusNode::configure()
         {
             publish_state(true, NO_ISSUE);
         }
-
-        mp_publisher_timer = this->create_wall_timer(std::chrono::milliseconds(int(1000./config[m_name]["publish_rate"].as<int>())), [this](){publish_timer_callback();}, mp_callback_group_publisher);
-        mp_update_timer = this->create_wall_timer(std::chrono::milliseconds(int(1000./config[m_name]["refresh_rate"].as<int>())), [this](){update_timer_callback();}, mp_callback_group_update);
 
     }
 }
@@ -148,6 +161,7 @@ bool ModbusNode::verify_connection()
 
 bool ModbusNode::verify_IO()
 {
+    // Only verify type, data type and if an address is provided for IO of interest
     for(auto &[key, value] : m_publish_on_event)
     {
         if(m_IO_map.find(key) == m_IO_map.end())
@@ -198,7 +212,7 @@ void ModbusNode::restart_connection()
         m_ctx_guard.unlock();
         sleep(1);
         /**
-         * @TODO find a way to make only this thread sleep
+         * @todo find a way to make only this thread sleep
          */
         m_ctx_guard.lock();
     }
@@ -211,10 +225,10 @@ void ModbusNode::restart_connection()
 
 void ModbusNode::update_timer_callback()
 {
-    mp_update_timer->cancel();
+    mp_update_timer->cancel(); // avoid flooding the queue
     try
     {
-        for(auto key : m_IO_list)
+        for(auto key : m_IO_list) // Update every single IO value one by one
         {
             bool result;
             m_IO_map_guard.lock();
@@ -288,18 +302,18 @@ void ModbusNode::update_timer_callback()
             m_IO_guard.unlock();
         }
     }
-    catch(...)
+    catch(...) // If error occurs
     {
-        if(!m_configOK)
+        if(!m_configOK) // And configuration is invalid
         {
             RCLCPP_WARN(get_logger(), "Timer callback but configuration is not valid, reconfiguring");
             publish_state(false, INVALID_CONFIGURATION_FILE);
-            configure();
+            configure(); // Try to reconfigure
         }
         else
         {
-            m_connected = false;
-            if(mp_reconnection_timer->is_canceled())
+            m_connected = false; // Default to a connection issue
+            if(mp_reconnection_timer->is_canceled()) // Only wake the reconnection timer up if it's sleeping
             {
                 RCLCPP_WARN(get_logger(), "Connection to %s:%d lost, reconnecting", m_address.c_str(), m_port);
                 publish_state(false, NOT_CONNECTED);
@@ -307,7 +321,7 @@ void ModbusNode::update_timer_callback()
             }
         }
     }
-    mp_checker_timer->reset();
+    mp_checker_timer->execute_callback(); // Look for an event
     mp_update_timer->reset();
 }
 
@@ -330,17 +344,16 @@ void ModbusNode::publish_timer_callback()
 
 void ModbusNode::check_timer_callback()
 {
-    mp_checker_timer->cancel();
-    m_publish = false;
+    m_publish = false; // Default to not publish
     for(auto &[key, value] : m_publish_on_event)
     {
         m_IO_guard.lock();
         m_checker_temp_value = m_IO[key];
         m_IO_guard.unlock();
 
-        if(value != m_checker_temp_value)
+        if(value != m_checker_temp_value) // A change has occured
         {
-            m_publish_on_event[key] = m_checker_temp_value;
+            m_publish_on_event[key] = m_checker_temp_value; // Update value
 
             if(!m_publish)
             {
@@ -348,7 +361,7 @@ void ModbusNode::check_timer_callback()
             }
         }
     }
-    if (m_publish)
+    if (m_publish) // Publish if a change occured
     {
         m_msg_on_event.header.set__stamp(now());
         m_msg_on_event.set__values(std::vector<uint16_t>());
@@ -364,16 +377,17 @@ void ModbusNode::check_timer_callback()
 
 void ModbusNode::subscriber_callback(ros_modbus_msgs::msg::Modbus::SharedPtr p_msg)
 {
-    for(int iter=0; iter < p_msg->in_out.size(); iter++)
+    for(int iter=0; iter < int(p_msg->in_out.size()); iter++) // iterate on the IO and value list of the message
     {
         bool result;
         try {
             auto key = p_msg->in_out[iter];
             auto value = p_msg->values[iter];
+
             m_IO_map_guard.lock();
             m_IO_sub_temp = m_IO_map[key];
             m_IO_map_guard.unlock();
-            if(m_IO_sub_temp.type == "input")
+            if(m_IO_sub_temp.type == "input") // Write on each output in command with received value
             {
                 RCLCPP_WARN(get_logger(), "I/O %s is configured as input, can't write here, skipping", key.c_str());
                 publish_state(false, INVALID_IO_TO_WRITE);
@@ -408,8 +422,8 @@ void ModbusNode::subscriber_callback(ros_modbus_msgs::msg::Modbus::SharedPtr p_m
                 }
             }
 
-        } catch (...) {
-
+        }
+        catch (...) {
             RCLCPP_WARN(get_logger(), "Unsupported output type for I/O , skipping");
             publish_state(false, NOT_CONNECTED);
         }
@@ -419,10 +433,13 @@ void ModbusNode::subscriber_callback(ros_modbus_msgs::msg::Modbus::SharedPtr p_m
 int main(int argc, char** argv)
 {
   rclcpp::init(argc, argv);
+
   auto node{std::make_shared<modbus_node::ModbusNode>()};
+
   rclcpp::executors::MultiThreadedExecutor executor;
   executor.add_node(node);
   executor.spin();
+
   rclcpp::shutdown();
   return 0;
 }
