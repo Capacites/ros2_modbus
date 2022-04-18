@@ -1,3 +1,3 @@
 std_msgs/Header header            #header info
-string[] coils #name of each coil
-uint8[] values #value of each coil
+string[] in_out #name of each I/O
+uint16[] values #value of each I/O
