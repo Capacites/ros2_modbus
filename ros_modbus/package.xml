@@ -1,10 +1,13 @@
 <?xml version="1.0"?>
 <package format="3">
   <name>ros_modbus</name>
-  <version>0.0.0</version>
-  <description>TODO: Package description</description>
-  <maintainer email="todo@todo.todo">ecn</maintainer>
-  <license>TODO: License declaration</license>
+  <version>1.0.0</version>
+  <description>Basic node to command a Modbus device via TCP</description>
+
+  <author email="alexis.fetet@capacites.fr">Alexis Fetet</maintainer>
+  <maintainer email="julien.viaud@capacites.fr">Julien Viaud</maintainer>
+
+  <license>MIT</license>
   
   <!--
   <url type="website">TODO</url>
@@ -15,6 +18,7 @@
   <depend>rclcpp</depend>
   <depend>rclcpy</depend>
   <depend>std_msgs</depend>
+  <depend>libmodbus</depend>
   <depend>ros_modbus_msgs</depend>
   
   <export>
