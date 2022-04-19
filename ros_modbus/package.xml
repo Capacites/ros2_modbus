@@ -4,7 +4,7 @@
   <version>1.0.0</version>
   <description>Basic node to command a Modbus device via TCP</description>
 
-  <author email="alexis.fetet@capacites.fr">Alexis Fetet</maintainer>
+  <author email="alexis.fetet@capacites.fr">Alexis Fetet</author>
   <maintainer email="julien.viaud@capacites.fr">Julien Viaud</maintainer>
 
   <license>MIT</license>
