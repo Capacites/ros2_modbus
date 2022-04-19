@@ -58,6 +58,11 @@ public:
      INVALID_IO_TO_WRITE = 7             /*!< Tried to write on a non output IO                                           */
     };
 
+    /**
+     * @brief Node constructor.
+     *
+     * @param options The node options
+     */
     ModbusNode(rclcpp::NodeOptions options = rclcpp::NodeOptions());
 
 private:

@@ -10,6 +10,11 @@
 using namespace std::chrono_literals;
 using namespace modbus_node;
 
+/**
+ * @brief Node constructor.
+ *
+ * @param options The node options
+ */
 ModbusNode::ModbusNode(rclcpp::NodeOptions options)
     : Node("modbus_node", options)
 {
@@ -44,6 +49,12 @@ ModbusNode::ModbusNode(rclcpp::NodeOptions options)
     mp_reconnection_timer->cancel();
 }
 
+/**
+ * @brief Publish a state message
+ *
+ * @param state The state to publish, true for a valid state, false if an error occurs
+ * @param state code The state code, to help troubleshoot
+ */
 void ModbusNode::publish_state(bool state, int state_code)
 {
     auto m_msg_state = ros_modbus_msgs::msg::State();
@@ -54,6 +65,13 @@ void ModbusNode::publish_state(bool state, int state_code)
     mp_state_publisher->publish(m_msg_state);
 }
 
+/**
+ * @brief Load the YAML configuration file provided at the node start.
+ *
+ * Initialize node with the given YAML.
+ * Calls verify_connection().
+ * Calls verify_IO().
+ */
 void ModbusNode::configure()
 {
     YAML::Node config = YAML::LoadFile(m_YAML_config_file);
@@ -143,6 +161,12 @@ void ModbusNode::configure()
     }
 }
 
+/**
+ * @brief Tries to open the connection to configured device.
+ *
+ * @return true if the connection is established
+ * @return false otherwise
+ */
 bool ModbusNode::verify_connection()
 {
     if (modbus_connect(m_ctx) == 0)
@@ -159,6 +183,16 @@ bool ModbusNode::verify_connection()
 
 }
 
+/**
+ * @brief Verify IO structure.
+ *
+ * Checks that each IO provided has a type "input" or "output".
+ * Checks that each IO provided has a data type "digital" or "analog".
+ * Checks that each IO provided has an address.
+ *
+ * @return true if the configuration appears valid
+ * @return false if an IO is provided with a non conform parameter
+ */
 bool ModbusNode::verify_IO()
 {
     // Only verify type, data type and if an address is provided for IO of interest
@@ -203,6 +237,13 @@ bool ModbusNode::verify_IO()
     return true;
 }
 
+/**
+ * @brief Restart the connection to the configured device.
+ *
+ * Close the modbus m_ctx context.
+ * Tries to restart the connection
+ * Publish a state message if connection restablished.
+ */
 void ModbusNode::restart_connection()
 {
     m_ctx_guard.lock();
@@ -223,6 +264,13 @@ void ModbusNode::restart_connection()
     mp_reconnection_timer->cancel();
 }
 
+/**
+ * @brief Update the values of all interest IO one by one.
+ *
+ * Update the values of all interest IO one by one.
+ * Publish a state message with not connected state.
+ * Calls restart_connection() in it's thread.
+ */
 void ModbusNode::update_timer_callback()
 {
     mp_update_timer->cancel(); // avoid flooding the queue
@@ -325,6 +373,9 @@ void ModbusNode::update_timer_callback()
     mp_update_timer->reset();
 }
 
+/**
+ * @brief Publish the state of all IO flagged to be published over on timer.
+ */
 void ModbusNode::publish_timer_callback()
 {
     m_msg_on_timer.header.set__stamp(now());
@@ -342,6 +393,12 @@ void ModbusNode::publish_timer_callback()
     mp_timer_publisher->publish(m_msg_on_timer);
 }
 
+/**
+ * @brief Look for any IO state change for IO flagged to be published over on event.
+ *
+ * Compares the current IO and the temp ones stored in m_checker_temp_value.
+ * If any change is observed, prepares and publishes a Modbus message on /ros_modbus/report_event with all IO flagged to be published over on event.
+ */
 void ModbusNode::check_timer_callback()
 {
     m_publish = false; // Default to not publish
@@ -375,6 +432,11 @@ void ModbusNode::check_timer_callback()
     }
 }
 
+/**
+ * @brief Send a received command to the device
+ *
+ * @param msg The received message with the command
+ */
 void ModbusNode::subscriber_callback(ros_modbus_msgs::msg::Modbus::SharedPtr p_msg)
 {
     for(int iter=0; iter < int(p_msg->in_out.size()); iter++) // iterate on the IO and value list of the message
