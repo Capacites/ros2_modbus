@@ -211,9 +211,6 @@ void ModbusNode::restart_connection()
     {
         m_ctx_guard.unlock();
         sleep(1);
-        /**
-         * @todo find a way to make only this thread sleep
-         */
         m_ctx_guard.lock();
     }
     m_ctx_guard.unlock();
