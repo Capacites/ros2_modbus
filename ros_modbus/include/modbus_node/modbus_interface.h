@@ -19,6 +19,7 @@
 #include <mutex>
 #include <set>
 #include <algorithm>
+#include <cstring>
 
 #ifdef _WIN32
 #include <Windows.h>
@@ -106,10 +107,6 @@ public:
     bool getConnectionState();
     bool initiateConnection();
     bool restartConnection();
-
-    void convert(uint8_t *, std::vector<uint8_t>, int);
-    void convert(uint16_t *, std::vector<uint16_t>, int);
-
 
 private:
 

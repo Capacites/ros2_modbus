@@ -6,6 +6,7 @@
  */
 
 #include <modbus_node/modbus_interface.h>
+#include <iostream>
 
 using namespace Modbus;
 
@@ -101,7 +102,7 @@ void ModbusInterface::updateMemory()
         throw MODBUS_EXCEPTION_SLAVE_OR_SERVER_FAILURE;
     }
     m_memory_guard.lock();
-    convert(m_temp8id, m_memory.input_coils, m_temp_nb_to_get);
+    std::copy(m_temp8id, m_temp8id+m_temp_nb_to_get, m_memory.input_coils.begin());
     m_memory_guard.unlock();
 
     //update output coils
@@ -118,14 +119,14 @@ void ModbusInterface::updateMemory()
         throw MODBUS_EXCEPTION_SLAVE_OR_SERVER_FAILURE;
     }
     m_memory_guard.lock();
-    convert(m_temp8od, m_memory.output_coils, m_temp_nb_to_get);
+    std::copy(m_temp8od, m_temp8od+m_temp_nb_to_get, m_memory.output_coils.begin());
     m_memory_guard.unlock();
 
     //update input registers
     m_memory_guard.lock();
     m_temp_nb_to_get =  m_memory.nb_input_registers;
     m_memory_guard.unlock();
-    uint16_t bufferia[m_temp_nb_to_get];
+    uint16_t bufferia[2*m_temp_nb_to_get];
     uint16_t *m_temp16ia = bufferia;
     m_ctx_guard.lock();
     m_success = modbus_read_input_registers(m_ctx, 0,m_temp_nb_to_get , m_temp16ia) != -1;
@@ -135,14 +136,14 @@ void ModbusInterface::updateMemory()
         throw MODBUS_EXCEPTION_SLAVE_OR_SERVER_FAILURE;
     }
     m_memory_guard.lock();
-    convert(m_temp16ia, m_memory.input_registers, m_temp_nb_to_get);
+    std::copy(m_temp16ia, m_temp16ia+m_temp_nb_to_get, m_memory.input_registers.begin());
     m_memory_guard.unlock();
 
     //update output registers
     m_memory_guard.lock();
     m_temp_nb_to_get =  m_memory.nb_output_registers;
     m_memory_guard.unlock();
-    uint16_t bufferoa[m_temp_nb_to_get];
+    uint16_t bufferoa[2*m_temp_nb_to_get];
     uint16_t *m_temp16oa = bufferoa;
     m_ctx_guard.lock();
     m_success = modbus_read_registers(m_ctx, 0,m_temp_nb_to_get , m_temp16oa) != -1;
@@ -152,7 +153,7 @@ void ModbusInterface::updateMemory()
         throw MODBUS_EXCEPTION_SLAVE_OR_SERVER_FAILURE;
     }
     m_memory_guard.lock();
-    convert(m_temp16oa, m_memory.output_registers, m_temp_nb_to_get);
+    std::copy(m_temp16oa, m_temp16oa+m_temp_nb_to_get, m_memory.output_registers.begin());
     m_memory_guard.unlock();
 
 }
@@ -346,9 +347,6 @@ bool ModbusInterface::restartConnection()
         {
             m_ctx_guard.unlock();
             sleep(1);
-            /**
-             * @todo find a way to make only this thread sleep
-             */
             m_ctx_guard.lock();
         }
         m_ctx_guard.unlock();
@@ -357,14 +355,4 @@ bool ModbusInterface::restartConnection()
     } catch (...) {
         return false;
     }
-}
-
-void ModbusInterface::convert(uint8_t *source, std::vector<uint8_t> target, int size)
-{
-    std::transform(source, source + size, target.begin(), [](char v){return static_cast<uint8_t>(v);});
-}
-
-void ModbusInterface::convert(uint16_t *source, std::vector<uint16_t> target, int size)
-{
-    std::transform(source, source + size, target.begin(), [](char v){return static_cast<uint16_t>(v);});
 }
