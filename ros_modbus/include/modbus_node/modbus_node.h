@@ -15,6 +15,7 @@
 
 //Modbus include
 #include <modbus/modbus-tcp.h>
+#include "modbus_interface.h"
 
 //YAML include
 #include <yaml-cpp/yaml.h>
@@ -35,6 +36,7 @@
 
 
 using namespace std::chrono_literals;
+using namespace Modbus;
 
 namespace modbus_node {
 
@@ -45,18 +47,6 @@ namespace modbus_node {
 class ModbusNode : public rclcpp::Node
 {
 public:
-
-    enum STATE_CODE
-    {
-     NO_ISSUE = 0,                       /*!< The node is running without encountering any issue                          */
-     INITIALIZING = 1,                   /*!< The node is initializing itself                                             */
-     NOT_CONNECTED = 2,                  /*!< The node could not establish, or lost the connection with the Modbus device */
-     INVALID_CONFIGURATION_FILE = 3,     /*!< The provided configuration file is not valid                                */
-     INVALID_IO_TYPE = 4,                /*!< An IO was given a type other than input or output                           */
-     INVALID_IO_DATA_TYPE = 5,           /*!< An IO was given a data type other than digital or analog                    */
-     INVALID_IO_KEY = 6,                 /*!< A provided key to publish, or write on is not given a configuration         */
-     INVALID_IO_TO_WRITE = 7             /*!< Tried to write on a non output IO                                           */
-    };
 
     /**
      * @brief Node constructor.
@@ -75,26 +65,6 @@ private:
      * Calls verify_IO().
      */
     void configure();
-
-    /**
-     * @brief Verify IO structure.
-     *
-     * Checks that each IO provided has a type "input" or "output".
-     * Checks that each IO provided has a data type "digital" or "analog".
-     * Checks that each IO provided has an address.
-     *
-     * @return true if the configuration appears valid
-     * @return false if an IO is provided with a non conform parameter
-     */
-    bool verify_IO();
-
-    /**
-     * @brief Tries to open the connection to configured device.
-     *
-     * @return true if the connection is established
-     * @return false otherwise
-     */
-    bool verify_connection();
 
     /**
      * @brief Restart the connection to the configured device.
@@ -142,23 +112,6 @@ private:
      */
     void publish_state(bool, int);    
 
-    /**
-     * @struct m_IO_struct
-     * @brief Structure defining an IO
-     *
-     * @var m_IO_struct::type
-     * IO type, can be input or output
-     * @var m_IO_struct::data_type
-     * IO data type, can be digital or analog
-     * @var m_IO_struct::address
-     * IO address
-     */
-    struct m_IO_struct{
-        std::string type;        /*!< The IO type, can be input or output                                                                                      */
-        std::string data_type;   /*!< The IO data type, can be digital or analog                                                                               */
-        int address;             /*!< The IO address in its register, starting at 1 on configuration file to match reference device Bechkoff KL1889 and EL2809 */
-    };
-
 //ROS parameters
     int m_timeout = declare_parameter<int>("timeout", 30);                                                                                        /*!< Timeout for connection to the modbus device */
     int m_sub_queue_size = declare_parameter<int>("sub_queue_size",10);                                                                           /*!< Queue size for subscribers                  */
@@ -168,34 +121,19 @@ private:
     bool m_debug = declare_parameter<bool>("debug", false);                                                                                       /*!< Debug mode                                  */
 
 //Node member variables
-
-    std::string m_address;         /*!< IP address of the modbus device          */
-    int m_port;                    /*!< Listening port of the modbus device      */
-    modbus_t *m_ctx;               /*!< Modbus context                           */
-
     std::map<std::string, uint16_t> m_publish_on_timer;       /*!< Map of IO and their values to publish on timer callback */
     ros_modbus_msgs::msg::Modbus m_msg_on_timer;              /*!< Modbus message for values to publish on timer callback  */
 
     std::map<std::string, uint16_t> m_publish_on_event;       /*!< Map of IO and their values to publish on event          */
     ros_modbus_msgs::msg::Modbus m_msg_on_event;              /*!< Modbus message for values to publish on event           */
 
-    std::map<std::string, uint16_t> m_IO;                     /*!< Map of all declared IO to publish and their values      */
-    std::map<std::string, m_IO_struct> m_IO_map;              /*!< Map of all declared IO and their definition             */
-    std::set<std::string> m_IO_list;                          /*!< List of all declared IO to publish                      */
-
-    std::mutex m_ctx_guard;        /*!< Modbus context guard                     */
-    std::mutex m_IO_map_guard;     /*!< IO map guard                             */
-    std::mutex m_IO_guard;         /*!< IO definition guard                      */
+    ModbusInterface m_modbus_device;
 
     uint8_t m_temp_digit_value;    /*!< Temporary value for digital reading      */
     uint16_t m_update_temp_value;  /*!< Temporary value for reading              */
     uint16_t m_checker_temp_value; /*!< Temporary value for checking events      */
-    m_IO_struct m_IO_update_temp;  /*!< Temporary value for updating values      */
-    m_IO_struct m_IO_sub_temp;     /*!< Temporary value for sending command      */
-    m_IO_struct m_IO_temp;         /*!< Temporary value for configuration        */
 
     bool m_publish;                /*!< Control to publish event message         */
-    bool m_connected{false};       /*!< Connection state to the modbus device    */
     bool m_configOK;               /*!< Configuration state to the modbus device */
 
 //ROS components

@@ -16,6 +16,11 @@ void ModbusInterface::setContext(std::string address, int port)
     m_ctx = modbus_new_tcp(address.c_str(), port);
 }
 
+std::pair<std::string, int> ModbusInterface::getContext()
+{
+    return std::pair<std::string, int>(m_address, m_port);
+}
+
 void ModbusInterface::setDevice(int nb_input_coils, int nb_output_coils, int nb_input_registers, int nb_output_registers)
 {
     m_memory_guard.lock();
@@ -45,6 +50,39 @@ void ModbusInterface::addIO(std::string name, std::string io_type, std::string i
     m_IO_map_guard.lock();
     m_IO_map.insert(std::pair(name, temp));
     m_IO_map_guard.unlock();
+}
+
+bool ModbusInterface::verifyIO()
+{
+    // Only verify type, data type and if an address is provided for IO of interest
+    m_IO_map_guard.lock();
+    auto temp_map = m_IO_map;
+    m_IO_map_guard.unlock();
+
+    for(auto &[key, structure]: temp_map)
+    {
+        if(structure.type != "input" && structure.type != "output")
+        {
+            return false;
+        }
+        else if(structure.data_type != "digital" && structure.type != "analog")
+        {
+            return false;
+        }
+        else if(structure.address == -1)
+        {
+            return false;
+        }
+    }
+    return true;
+}
+
+bool ModbusInterface::hasIODeclared(std::string key)
+{
+    m_IO_map_guard.lock();
+    bool result = m_IO_map.find(key) != m_IO_map.end();
+    m_IO_map_guard.unlock();
+    return result;
 }
 
 void ModbusInterface::updateMemory()
@@ -216,4 +254,59 @@ bool ModbusInterface::setMultipleOutputRegisters(std::vector<uint16_t> values)
     bool result = modbus_write_registers(m_ctx, 0, temp_to_write, values.data());
     m_ctx_guard.unlock();
     return result;
+}
+
+void ModbusInterface::setConnectionState(bool state)
+{
+    m_connection_state_guard.lock();
+    m_connected = state;
+    m_connection_state_guard.unlock();
+}
+
+bool ModbusInterface::getConnectionState()
+{
+    m_connection_state_guard.lock();
+    bool state = m_connected;
+    m_connection_state_guard.unlock();
+    return state;
+}
+
+bool ModbusInterface::initiateConnection()
+{
+    m_ctx_guard.lock();
+    if (modbus_connect(m_ctx) == 0)
+    {
+        m_ctx_guard.unlock();
+        setConnectionState(true);
+        return true;
+    }
+    else
+    {
+        m_ctx_guard.unlock();
+        setConnectionState(false);
+        return false;
+    }
+}
+
+bool ModbusInterface::restartConnection()
+{
+    try {
+        setConnectionState(false);
+        m_ctx_guard.lock();
+        modbus_close(m_ctx);
+        while(modbus_connect(m_ctx) == -1)
+        {
+            m_ctx_guard.unlock();
+            sleep(1);
+            /**
+             * @todo find a way to make only this thread sleep
+             */
+            m_ctx_guard.lock();
+        }
+        m_ctx_guard.unlock();
+        setConnectionState(true);
+        return true;
+    } catch (...) {
+        return false;
+    }
 }

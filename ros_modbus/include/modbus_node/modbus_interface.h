@@ -19,6 +19,12 @@
 #include <mutex>
 #include <set>
 
+#ifdef _WIN32
+#include <Windows.h>
+#else
+#include <unistd.h>
+#endif
+
 namespace Modbus {
 
 class ModbusInterface
@@ -39,14 +45,24 @@ public:
      INVALID_IO_TO_WRITE = 7             /*!< Tried to write on a non output IO                                           */
     };
 
-
+    /**
+     * @struct m_IO_struct
+     * @brief Structure defining an IO
+     *
+     * @var m_IO_struct::type
+     * IO type, can be input or output
+     * @var m_IO_struct::data_type
+     * IO data type, can be digital or analog
+     * @var m_IO_struct::address
+     * IO address
+     */
     struct IO_struct{
         std::string type;        /*!< The IO type, can be input or output                                                                                      */
         std::string data_type;   /*!< The IO data type, can be digital or analog                                                                               */
         int address;             /*!< The IO address in its register, starting at 1 on configuration file to match reference device Bechkoff KL1889 and EL2809 */
     };
 
-    struct memory{
+    struct modbus_memory{
         int nb_input_coils;
         int nb_output_coils;
         int nb_input_registers;
@@ -58,8 +74,14 @@ public:
     };
 
     void setContext(std::string address, int port);
+    std::pair<std::string, int> getContext();
+
     void setDevice(int nb_input_coils, int nb_output_coils, int nb_input_registers, int nb_output_registers);
+
     void addIO(std:: string, std::string, std::string, int);
+    bool verifyIO();
+    bool hasIODeclared(std::string);
+
     void updateMemory();
 
     uint8_t getSingleInputCoil(int);
@@ -76,20 +98,22 @@ public:
     std::vector<uint16_t> getMultipleOutputRegisters();
     bool setMultipleOutputRegisters(std::vector<uint16_t>);
 
-    void setConnectionState();
-    bool getConnectionstate();
+    void setConnectionState(bool);
+    bool getConnectionState();
+    bool initiateConnection();
+    bool restartConnection();
 
 
 private:
 
     modbus_t *m_ctx;               /*!< Modbus context                           */
-    memory m_memory;
+    modbus_memory m_memory;
     std::map<std::string, IO_struct> m_IO_map;              /*!< Map of all declared IO and their definition             */
-    std::set<std::string> m_IO_list;                          /*!< List of all declared IO                      */
 
     std::mutex m_ctx_guard;        /*!< Modbus context guard                     */
     std::mutex m_IO_map_guard;     /*!< IO map guard                             */
     std::mutex m_memory_guard;     /*!< IO map guard                             */
+    std::mutex m_connection_state_guard;     /*!< connection state guard                            */
 
     bool m_connected{false};       /*!< Connection state to the modbus device    */
     std::string m_address;
