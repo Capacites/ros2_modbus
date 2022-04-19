@@ -18,6 +18,7 @@
 #include <map>
 #include <mutex>
 #include <set>
+#include <algorithm>
 
 #ifdef _WIN32
 #include <Windows.h>
@@ -98,10 +99,16 @@ public:
     std::vector<uint16_t> getMultipleOutputRegisters();
     bool setMultipleOutputRegisters(std::vector<uint16_t>);
 
+    uint16_t getIOvalue(std::string);
+    std::map<std::string, IO_struct> getIOMap();
+
     void setConnectionState(bool);
     bool getConnectionState();
     bool initiateConnection();
     bool restartConnection();
+
+    void convert(uint8_t *, std::vector<uint8_t>, int);
+    void convert(uint16_t *, std::vector<uint16_t>, int);
 
 
 private:
@@ -119,8 +126,6 @@ private:
     std::string m_address;
     int m_port;
 
-    uint8_t m_temp8;
-    uint16_t m_temp16;
     int m_temp_nb_to_get;
     bool m_success;
 

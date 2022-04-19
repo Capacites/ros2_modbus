@@ -26,16 +26,16 @@ void ModbusInterface::setDevice(int nb_input_coils, int nb_output_coils, int nb_
     m_memory_guard.lock();
 
     m_memory.nb_input_coils = nb_input_coils;
-    m_memory.input_coils.resize(nb_input_coils);
+    m_memory.input_coils = std::vector<uint8_t>(nb_input_coils, 0);
 
     m_memory.nb_output_coils = nb_output_coils;
-    m_memory.output_coils.resize(nb_output_coils);
+    m_memory.output_coils = std::vector<uint8_t>(nb_output_coils, 0);
 
     m_memory.nb_input_registers = nb_input_registers;
-    m_memory.input_registers.resize(nb_input_registers);
+    m_memory.input_registers = std::vector<uint16_t>(nb_input_registers, 0);
 
     m_memory.nb_output_registers = nb_output_registers;
-    m_memory.output_registers.resize(nb_output_registers);
+    m_memory.output_registers = std::vector<uint16_t>(nb_output_registers, 0);
 
     m_memory_guard.unlock();
 }
@@ -91,60 +91,68 @@ void ModbusInterface::updateMemory()
     m_memory_guard.lock();
     m_temp_nb_to_get =  m_memory.nb_input_coils;
     m_memory_guard.unlock();
+    uint8_t bufferid[m_temp_nb_to_get];
+    uint8_t *m_temp8id = bufferid;
     m_ctx_guard.lock();
-    m_success = modbus_read_input_bits(m_ctx, 0,m_temp_nb_to_get , &m_temp8) != -1;
+    m_success = modbus_read_input_bits(m_ctx, 0, m_temp_nb_to_get , m_temp8id) != -1;
     m_ctx_guard.unlock();
     if(!m_success)
     {
         throw MODBUS_EXCEPTION_SLAVE_OR_SERVER_FAILURE;
     }
     m_memory_guard.lock();
-    m_memory.input_coils = std::vector<uint8_t>(m_temp8, m_temp_nb_to_get);
+    convert(m_temp8id, m_memory.input_coils, m_temp_nb_to_get);
     m_memory_guard.unlock();
 
     //update output coils
     m_memory_guard.lock();
     m_temp_nb_to_get =  m_memory.nb_output_coils;
     m_memory_guard.unlock();
+    uint8_t bufferod[m_temp_nb_to_get];
+    uint8_t *m_temp8od = bufferod;
     m_ctx_guard.lock();
-    m_success = modbus_read_bits(m_ctx, 0,m_temp_nb_to_get , &m_temp8) != -1;
+    m_success = modbus_read_bits(m_ctx, 0,m_temp_nb_to_get , m_temp8od) != -1;
     m_ctx_guard.unlock();
     if(!m_success)
     {
         throw MODBUS_EXCEPTION_SLAVE_OR_SERVER_FAILURE;
     }
     m_memory_guard.lock();
-    m_memory.output_coils = std::vector<uint8_t>(m_temp8, m_temp_nb_to_get);
+    convert(m_temp8od, m_memory.output_coils, m_temp_nb_to_get);
     m_memory_guard.unlock();
 
     //update input registers
     m_memory_guard.lock();
     m_temp_nb_to_get =  m_memory.nb_input_registers;
     m_memory_guard.unlock();
+    uint16_t bufferia[m_temp_nb_to_get];
+    uint16_t *m_temp16ia = bufferia;
     m_ctx_guard.lock();
-    m_success = modbus_read_input_registers(m_ctx, 0,m_temp_nb_to_get , &m_temp16) != -1;
+    m_success = modbus_read_input_registers(m_ctx, 0,m_temp_nb_to_get , m_temp16ia) != -1;
     m_ctx_guard.unlock();
     if(!m_success)
     {
         throw MODBUS_EXCEPTION_SLAVE_OR_SERVER_FAILURE;
     }
     m_memory_guard.lock();
-    m_memory.input_registers = std::vector<uint16_t>(m_temp16, m_temp_nb_to_get);
+    convert(m_temp16ia, m_memory.input_registers, m_temp_nb_to_get);
     m_memory_guard.unlock();
 
     //update output registers
     m_memory_guard.lock();
     m_temp_nb_to_get =  m_memory.nb_output_registers;
     m_memory_guard.unlock();
+    uint16_t bufferoa[m_temp_nb_to_get];
+    uint16_t *m_temp16oa = bufferoa;
     m_ctx_guard.lock();
-    m_success = modbus_read_registers(m_ctx, 0,m_temp_nb_to_get , &m_temp16) != -1;
+    m_success = modbus_read_registers(m_ctx, 0,m_temp_nb_to_get , m_temp16oa) != -1;
     m_ctx_guard.unlock();
     if(!m_success)
     {
         throw MODBUS_EXCEPTION_SLAVE_OR_SERVER_FAILURE;
     }
     m_memory_guard.lock();
-    m_memory.output_registers = std::vector<uint16_t>(m_temp16, m_temp_nb_to_get);
+    convert(m_temp16oa, m_memory.output_registers, m_temp_nb_to_get);
     m_memory_guard.unlock();
 
 }
@@ -256,6 +264,46 @@ bool ModbusInterface::setMultipleOutputRegisters(std::vector<uint16_t> values)
     return result;
 }
 
+uint16_t ModbusInterface::getIOvalue(std::string name)
+{
+    m_IO_map_guard.lock();
+    IO_struct temp_def = m_IO_map.at(name);
+    m_IO_map_guard.unlock();
+
+    if (temp_def.type == "input")
+    {
+        if (temp_def.data_type == "digital")
+        {
+            return getSingleInputCoil(temp_def.address);
+        }
+        else if (temp_def.data_type == "analog")
+        {
+            return getSingleInputRegister(temp_def.address);
+        }
+    }
+    else if (temp_def.type == "output")
+    {
+        if (temp_def.data_type == "digital")
+        {
+            return getSingleOutputCoil(temp_def.address);
+        }
+        else if (temp_def.data_type == "analog")
+        {
+            return getSingleOutputRegister(temp_def.address);
+        }
+    }
+    throw MODBUS_EXCEPTION_ILLEGAL_DATA_ADDRESS;
+    return 0;
+}
+
+std::map<std::string, ModbusInterface::IO_struct> ModbusInterface::getIOMap()
+{
+    m_IO_map_guard.lock();
+    std::map<std::string, IO_struct> map = m_IO_map;
+    m_IO_map_guard.unlock();
+    return map;
+}
+
 void ModbusInterface::setConnectionState(bool state)
 {
     m_connection_state_guard.lock();
@@ -309,4 +357,14 @@ bool ModbusInterface::restartConnection()
     } catch (...) {
         return false;
     }
+}
+
+void ModbusInterface::convert(uint8_t *source, std::vector<uint8_t> target, int size)
+{
+    std::transform(source, source + size, target.begin(), [](char v){return static_cast<uint8_t>(v);});
+}
+
+void ModbusInterface::convert(uint16_t *source, std::vector<uint16_t> target, int size)
+{
+    std::transform(source, source + size, target.begin(), [](char v){return static_cast<uint16_t>(v);});
 }

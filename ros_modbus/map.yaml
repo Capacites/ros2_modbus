@@ -20,7 +20,7 @@ test_device:
     digital_input: 16
     digital_output: 8
     analog_input: 0
-    analog_output:0
+    analog_output: 0
 
   input:
     digital:
