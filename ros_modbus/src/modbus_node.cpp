@@ -321,7 +321,7 @@ void ModbusNode::update_timer_callback()
             }
         }
     }
-    mp_checker_timer->execute_callback(); // Look for an event
+    mp_checker_timer->reset(); // Look for an event
     mp_update_timer->reset();
 }
 
@@ -344,6 +344,7 @@ void ModbusNode::publish_timer_callback()
 
 void ModbusNode::check_timer_callback()
 {
+    mp_checker_timer->cancel();
     m_publish = false; // Default to not publish
     for(auto &[key, value] : m_publish_on_event)
     {
