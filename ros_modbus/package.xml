@@ -17,7 +17,6 @@
   -->
 
   <depend>rclcpp</depend>
-  <depend>rclcpy</depend>
   <depend>std_msgs</depend>
   <depend>libmodbus</depend>
   <depend>ros_modbus_msgs</depend>
