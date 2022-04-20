@@ -9,7 +9,13 @@
 
 using namespace std::chrono_literals;
 using namespace modbus_node;
+using namespace Modbus;
 
+/**
+ * @brief Node constructor.
+ *
+ * @param options The node options
+ */
 ModbusNode::ModbusNode(rclcpp::NodeOptions options)
     : Node("modbus_node", options)
 {
@@ -26,16 +32,16 @@ ModbusNode::ModbusNode(rclcpp::NodeOptions options)
     m_msg_on_event.set__in_out(std::vector<std::string>());
     m_msg_on_event.set__values(std::vector<uint16_t>());
 
-    publish_state(false, INITIALIZING); // Currently not working, it appears that publisher is not fully initialized at this staged
+    publish_state(false, ModbusInterface::INITIALIZING); // Currently not working, it appears that publisher is not fully initialized at this staged
 
-    try
-    {
+    //try
+    //{
         configure(); //attempt to configure
-    }
-    catch (...) {
-        RCLCPP_ERROR(get_logger(), "Configuration file not valid, please provide a valid configuration file");
-        publish_state(false, INVALID_CONFIGURATION_FILE);
-    }
+    //}
+    //catch (...) {
+    //    RCLCPP_ERROR(get_logger(), "Configuration file not valid, please provide a valid configuration file");
+    //    publish_state(false, ModbusInterface::INVALID_CONFIGURATION_FILE);
+    //}
 
     // assigning timers to threads and put them to sleep
     mp_checker_timer = this->create_wall_timer(0s, [this](){check_timer_callback();}, mp_callback_group_checker);
@@ -44,6 +50,12 @@ ModbusNode::ModbusNode(rclcpp::NodeOptions options)
     mp_reconnection_timer->cancel();
 }
 
+/**
+ * @brief Publish a state message
+ *
+ * @param state The state to publish, true for a valid state, false if an error occurs
+ * @param state code The state code, to help troubleshoot
+ */
 void ModbusNode::publish_state(bool state, int state_code)
 {
     auto m_msg_state = ros_modbus_msgs::msg::State();
@@ -54,28 +66,41 @@ void ModbusNode::publish_state(bool state, int state_code)
     mp_state_publisher->publish(m_msg_state);
 }
 
+/**
+ * @brief Load the YAML configuration file provided at the node start.
+ *
+ * Initialize Modbus device with the given YAML.
+ * Initiate connection.
+ * Simple IO verification.
+ */
 void ModbusNode::configure()
 {
     YAML::Node config = YAML::LoadFile(m_YAML_config_file);
     if(config[m_name]) // We need our device description
     {
+        int temp_address;
         // configuring Modbus device context
-        m_address = config[m_name]["address"].as<std::string>();
-        m_port = config[m_name]["port"].as<int>();
-        m_ctx = modbus_new_tcp(m_address.c_str(), m_port);
+        m_modbus_device.setContext(config[m_name]["address"].as<std::string>(),
+                                   config[m_name]["port"].as<int>());
+        m_modbus_device.initiateConnection();
+        auto temp_context = m_modbus_device.getContext();
+        RCLCPP_INFO(get_logger(),"Configuring device %s with address %s and port %d", m_name.c_str(), temp_context.first.c_str(), temp_context.second);
+
+        m_modbus_device.setDevice(config[m_name]["connected_IO"]["digital_input"].as<int>(),
+                                  config[m_name]["connected_IO"]["digital_output"].as<int>(),
+                                  config[m_name]["connected_IO"]["analog_input"].as<int>(),
+                                  config[m_name]["connected_IO"]["analog_output"].as<int>());
 
         // Creating map of IO to publish on timer
         for (const auto &iter : config[m_name]["publish_on_timer"].as<std::vector<std::string>>())
         {
             m_publish_on_timer.insert({iter, 0});
-            m_IO_list.insert(iter);
         }
 
         // Creating map of IO to publish on event
         for (const auto &iter : config[m_name]["publish_on_event"].as<std::vector<std::string>>())
         {
             m_publish_on_event.insert({iter, 0});
-            m_IO_list.insert(iter);
         }
 
         // Construct IO structure for inputs, update map with IO name as key for it's structure
@@ -83,17 +108,15 @@ void ModbusNode::configure()
         {
             for(YAML::const_iterator element2=element->second.begin();element2!=element->second.end();++element2)
             {
-                m_IO_temp.type = "input";
-                m_IO_temp.data_type = element->first.as<std::string>();
                 if(element2->second.IsScalar()) // Prevent substracting one to empty address
                 {
-                    m_IO_temp.address = element2->second.as<int>()-1;
+                    temp_address = element2->second.as<int>()-1;
                 }
                 else
                 {
-                    m_IO_temp.address = -1;
+                    temp_address = -1;
                 }
-                m_IO_map.insert(std::pair(element2->first.as<std::string>(), m_IO_temp));
+                m_modbus_device.addIO(element2->first.as<std::string>(), "input", element->first.as<std::string>(), temp_address);
             }
         }
 
@@ -102,218 +125,95 @@ void ModbusNode::configure()
         {
             for(YAML::const_iterator element2=element->second.begin();element2!=element->second.end();++element2)
             {
-                m_IO_temp.type = "output";
-                m_IO_temp.data_type = element->first.as<std::string>();
                 if(element2->second.IsScalar()) // Prevent substracting one to empty address
                 {
-                    m_IO_temp.address = element2->second.as<int>()-1;
+                    temp_address = element2->second.as<int>()-1;
                 }
                 else
                 {
-                    m_IO_temp.address = -1;
+                   temp_address = -1;
                 }
-                m_IO_map.insert(std::pair(element2->first.as<std::string>(), m_IO_temp));
+                m_modbus_device.addIO(element2->first.as<std::string>(), "output", element->first.as<std::string>(), temp_address);
             }
         }
 
-        RCLCPP_INFO(get_logger(),"Configuring device %s with address %s and port %d", m_name.c_str(), m_address.c_str(), m_port);
-        m_connected = verify_connection();
-
         RCLCPP_INFO(get_logger(),"Verifying device %s's IO", m_name.c_str());
-        m_configOK = verify_IO();
+        m_configOK = m_modbus_device.verifyIO();
 
         // Configure timers with desired rate
-        mp_publisher_timer = this->create_wall_timer(std::chrono::milliseconds(int(1000./config[m_name]["publish_rate"].as<int>())), [this](){publish_timer_callback();}, mp_callback_group_publisher);
-        mp_update_timer = this->create_wall_timer(std::chrono::milliseconds(int(1000./config[m_name]["refresh_rate"].as<int>())), [this](){update_timer_callback();}, mp_callback_group_update);
+        mp_publisher_timer = this->create_wall_timer(std::chrono::milliseconds(int(1000./config[m_name]["publish_rate"].as<int>())),
+                                                     [this](){publish_timer_callback();},
+                                                     mp_callback_group_publisher);
+
+        mp_update_timer = this->create_wall_timer(std::chrono::milliseconds(int(1000./config[m_name]["refresh_rate"].as<int>())),
+                                                  [this](){update_timer_callback();},
+                                                  mp_callback_group_update);
 
         // publish updated state
         if(!m_configOK)
         {
-            publish_state(false, INVALID_CONFIGURATION_FILE);
+            RCLCPP_INFO(get_logger(), "Configuration appears invalid");
+            publish_state(false, ModbusInterface::INVALID_CONFIGURATION_FILE);
         }
-        else if (!m_connected)
+        else if (!m_modbus_device.getConnectionState())
         {
-            publish_state(false, NOT_CONNECTED);
+            RCLCPP_INFO(get_logger(), "Can not connect");
+            publish_state(false, ModbusInterface::NOT_CONNECTED);
         }
         else
         {
-            publish_state(true, NO_ISSUE);
+            RCLCPP_INFO(get_logger(), "Configuration appears valid, connected");
+            publish_state(true, ModbusInterface::NO_ISSUE);
         }
 
     }
 }
 
-bool ModbusNode::verify_connection()
-{
-    if (modbus_connect(m_ctx) == 0)
-    {
-        RCLCPP_INFO(get_logger(),"Connected to %s:%d successfully", m_address.c_str(), m_port);
-        return true;
-    }
-    else
-    {
-        RCLCPP_WARN(get_logger(), "Connection to %s:%d failed", m_address.c_str(), m_port);
-        return false;
-    }
-
-
-}
-
-bool ModbusNode::verify_IO()
-{
-    // Only verify type, data type and if an address is provided for IO of interest
-    for(auto &[key, value] : m_publish_on_event)
-    {
-        if(m_IO_map.find(key) == m_IO_map.end())
-        {
-            RCLCPP_INFO(get_logger(), "I/O %s is not provided in configuration file", key.c_str());
-            return false;
-        }
-        else if(m_IO_map[key].data_type != "digital" && m_IO_map[key].type != "analog")
-        {
-            RCLCPP_INFO(get_logger(), "I/O %s is provided with incorrect I/O type (given %s expected digital or analog) in configuration file", key.c_str(), m_IO_map[key].type.c_str());
-            return false;
-        }
-        else if(m_IO_map[key].address == -1)
-        {
-            RCLCPP_INFO(get_logger(), "I/O %s is provided with no address in configuration file", key.c_str());
-            return false;
-        }
-    }
-    for(auto &[key, value] : m_publish_on_timer)
-    {
-        if(m_IO_map.find(key) == m_IO_map.end())
-        {
-            RCLCPP_INFO(get_logger(), "I/O %s is not provided in configuration file", key.c_str());
-            return false;
-        }
-        else if(m_IO_map[key].data_type != "digital" && m_IO_map[key].type != "analog")
-        {
-            RCLCPP_INFO(get_logger(), "I/O %s is provided with incorrect I/O type (given %s expected digital or analog) in configuration file", key.c_str(), m_IO_map[key].type.c_str());
-            return false;
-        }
-        else if(m_IO_map[key].address == -1)
-        {
-            RCLCPP_INFO(get_logger(), "I/O %s is provided with no address in configuration file", key.c_str());
-            return false;
-        }
-    }
-
-    RCLCPP_INFO(get_logger(),"Configuration of %s appears valid successfully", m_name.c_str());
-    return true;
-}
-
+/**
+ * @brief Restart the connection to the configured device.
+ *
+ * Tries to restart the connection.
+ * Publish a state message if connection restablished.
+ */
 void ModbusNode::restart_connection()
 {
-    m_ctx_guard.lock();
-    modbus_close(m_ctx);
-    while(modbus_connect(m_ctx) == -1)
-    {
-        m_ctx_guard.unlock();
-        sleep(1);
-        m_ctx_guard.lock();
-    }
-    m_ctx_guard.unlock();
-    RCLCPP_INFO(get_logger(), "Reconnected to %s:%d", m_address.c_str(), m_port);
-    m_connected = true;  
-    publish_state(true, NO_ISSUE);
+    m_modbus_device.restartConnection();
+    auto temp_context = m_modbus_device.getContext();
+    RCLCPP_INFO(get_logger(), "Reconnected to %s:%d", temp_context.first.c_str(), temp_context.second);
+    publish_state(true, ModbusInterface::NO_ISSUE);
     mp_reconnection_timer->cancel();
 }
 
+/**
+ * @brief Update the modbus device memory.
+ *
+ * Update the modbus device memory.
+ * Publish a state message with not connected state if needed.
+ * Calls restart_connection() in it's thread if disconnected.
+ */
 void ModbusNode::update_timer_callback()
 {
     mp_update_timer->cancel(); // avoid flooding the queue
     try
     {
-        for(auto key : m_IO_list) // Update every single IO value one by one
-        {
-            bool result;
-            m_IO_map_guard.lock();
-            m_IO_update_temp = m_IO_map[key];
-            m_IO_map_guard.unlock();
-            if(m_IO_update_temp.type == "input")
-            {
-                if (m_IO_update_temp.data_type == "digital")
-                {
-                    m_ctx_guard.lock();
-                    result = modbus_read_input_bits(m_ctx, m_IO_update_temp.address, 1, &m_temp_digit_value) == -1;
-                    m_ctx_guard.unlock();
-                    if (result)
-                    {
-                        throw MODBUS_EXCEPTION_SLAVE_OR_SERVER_FAILURE;
-                    }
-                }
-                else if (m_IO_update_temp.data_type == "analog")
-                {
-                    m_ctx_guard.lock();
-                    result = modbus_read_input_registers(m_ctx, m_IO_update_temp.address, 1, &m_update_temp_value) == -1;
-                    m_ctx_guard.unlock();
-                    if (result)
-                    {
-                            throw MODBUS_EXCEPTION_SLAVE_OR_SERVER_FAILURE;
-                        }
-                }
-                else
-                {
-                    RCLCPP_WARN(get_logger(), "Unsupported input type for I/O %s, skipping", key.c_str());
-                    publish_state(false, INVALID_IO_DATA_TYPE);
-                }
-            }
-            else if(m_IO_update_temp.type == "output")
-            {
-                if (m_IO_update_temp.data_type == "digital")
-                {
-                    m_ctx_guard.lock();
-                    result = modbus_read_input_bits(m_ctx, m_IO_update_temp.address, 1, &m_temp_digit_value) == -1;
-                    m_ctx_guard.unlock();
-                    if (result)
-                    {
-                        throw MODBUS_EXCEPTION_SLAVE_OR_SERVER_FAILURE;
-                    }
-                    m_update_temp_value = m_temp_digit_value;
-                }
-                else if (m_IO_update_temp.data_type == "analog")
-                {
-                    m_ctx_guard.lock();
-                    result = modbus_read_input_registers(m_ctx, m_IO_update_temp.address, 1, &m_update_temp_value) == -1;
-                    m_ctx_guard.unlock();
-                    if (result)
-                    {
-                        throw MODBUS_EXCEPTION_SLAVE_OR_SERVER_FAILURE;
-                    }
-                }
-                else
-                {
-                    RCLCPP_WARN(get_logger(), "Unsupported output type for I/O %s, skipping", key.c_str());
-                    publish_state(false, INVALID_IO_DATA_TYPE);
-                }
-            }
-            else
-            {
-                RCLCPP_WARN(get_logger(), "I/O %s is not set as input nor output, skipping", key.c_str());
-                publish_state(false, INVALID_IO_TYPE);
-            }
-
-            m_IO_guard.lock();
-            m_IO[key] = m_update_temp_value;
-            m_IO_guard.unlock();
-        }
+        m_modbus_device.updateMemory();
     }
     catch(...) // If error occurs
     {
         if(!m_configOK) // And configuration is invalid
         {
             RCLCPP_WARN(get_logger(), "Timer callback but configuration is not valid, reconfiguring");
-            publish_state(false, INVALID_CONFIGURATION_FILE);
+            publish_state(false, ModbusInterface::INVALID_CONFIGURATION_FILE);
             configure(); // Try to reconfigure
         }
         else
         {
-            m_connected = false; // Default to a connection issue
+            m_modbus_device.setConnectionState(false); // Default to a connection issue
             if(mp_reconnection_timer->is_canceled()) // Only wake the reconnection timer up if it's sleeping
             {
-                RCLCPP_WARN(get_logger(), "Connection to %s:%d lost, reconnecting", m_address.c_str(), m_port);
-                publish_state(false, NOT_CONNECTED);
+                auto temp_context = m_modbus_device.getContext();
+                RCLCPP_WARN(get_logger(), "Connection to %s:%d lost, reconnecting", temp_context.first.c_str(), temp_context.second);
+                publish_state(false, ModbusInterface::NOT_CONNECTED);
                 mp_reconnection_timer->reset();
             }
         }
@@ -322,6 +222,9 @@ void ModbusNode::update_timer_callback()
     mp_update_timer->reset();
 }
 
+/**
+ * @brief Publish the state of all IO flagged to be published over on timer.
+ */
 void ModbusNode::publish_timer_callback()
 {
     m_msg_on_timer.header.set__stamp(now());
@@ -330,25 +233,26 @@ void ModbusNode::publish_timer_callback()
 
     for(auto &[key, value] : m_publish_on_event)
     {
-        m_IO_guard.lock();
-        m_publish_on_timer[key] = m_IO[key];
-        m_IO_guard.unlock();
+        m_publish_on_timer[key] = m_modbus_device.getIOvalue(key);
         m_msg_on_timer.in_out.push_back(key);
         m_msg_on_timer.values.push_back(m_publish_on_timer[key]);
     }
     mp_timer_publisher->publish(m_msg_on_timer);
 }
 
+/**
+ * @brief Look for any IO state change for IO flagged to be published over on event.
+ *
+ * Compares the current IO and the temp ones stored in m_checker_temp_value.
+ * If any change is observed, prepares and publishes a Modbus message on /ros_modbus/report_event with all IO flagged to be published over on event.
+ */
 void ModbusNode::check_timer_callback()
 {
     mp_checker_timer->cancel();
     m_publish = false; // Default to not publish
     for(auto &[key, value] : m_publish_on_event)
     {
-        m_IO_guard.lock();
-        m_checker_temp_value = m_IO[key];
-        m_IO_guard.unlock();
-
+        m_checker_temp_value = m_modbus_device.getIOvalue(key);
         if(value != m_checker_temp_value) // A change has occured
         {
             m_publish_on_event[key] = m_checker_temp_value; // Update value
@@ -373,57 +277,54 @@ void ModbusNode::check_timer_callback()
     }
 }
 
+/**
+ * @brief Send a received command to the device
+ *
+ * Get current outpu state and write desired output values on their address.
+ * send the command as a vector of outputs.
+ *
+ * @param msg The received message with the command
+ */
 void ModbusNode::subscriber_callback(ros_modbus_msgs::msg::Modbus::SharedPtr p_msg)
 {
     for(int iter=0; iter < int(p_msg->in_out.size()); iter++) // iterate on the IO and value list of the message
     {
-        bool result;
+        auto temp_digital = m_modbus_device.getMultipleOutputCoils();
+        auto temp_analog = m_modbus_device.getMultipleOutputRegisters();
+        auto m_IO_sub_temp = m_modbus_device.getIOMap();
+
         try {
             auto key = p_msg->in_out[iter];
             auto value = p_msg->values[iter];
 
-            m_IO_map_guard.lock();
-            m_IO_sub_temp = m_IO_map[key];
-            m_IO_map_guard.unlock();
-            if(m_IO_sub_temp.type == "input") // Write on each output in command with received value
+            if(m_IO_sub_temp.at(key).type == "input") // Write on each output in command with received value
             {
                 RCLCPP_WARN(get_logger(), "I/O %s is configured as input, can't write here, skipping", key.c_str());
-                publish_state(false, INVALID_IO_TO_WRITE);
+                publish_state(false, ModbusInterface::INVALID_IO_TO_WRITE);
             }
-            else if(m_IO_sub_temp.type == "output")
+            else if(m_IO_sub_temp.at(key).type == "output")
             {
-                if (m_IO_sub_temp.data_type == "digital")
+                if (m_IO_sub_temp.at(key).data_type == "digital")
                 {
-                    m_ctx_guard.lock();
-                    result = modbus_write_bit(m_ctx, m_IO_sub_temp.address, value) == -1;
-                    m_ctx_guard.unlock();
-                    if (result)
-                    {
-                        throw MODBUS_EXCEPTION_SLAVE_OR_SERVER_FAILURE;
-                    }
-                    m_update_temp_value = m_temp_digit_value;
+                    temp_digital[m_IO_sub_temp.at(key).address] = value;
                 }
-                else if (m_IO_sub_temp.data_type == "analog")
+                else if (m_IO_sub_temp.at(key).data_type == "analog")
                 {
-                    m_ctx_guard.lock();
-                    result = modbus_write_register(m_ctx, m_IO_sub_temp.address, value) == -1;
-                    m_ctx_guard.unlock();
-                    if (result)
-                    {
-                        throw MODBUS_EXCEPTION_SLAVE_OR_SERVER_FAILURE;
-                    }
+                    temp_analog[m_IO_sub_temp.at(key).address] = value;
                 }
                 else
                 {
                     RCLCPP_WARN(get_logger(), "Unsupported output type for I/O %s, skipping", key.c_str());
-                    publish_state(false, INVALID_IO_DATA_TYPE);
+                    publish_state(false, ModbusInterface::INVALID_IO_DATA_TYPE);
+                    break;
                 }
             }
-
+            m_modbus_device.setMultipleOutputCoils(temp_digital);
+            m_modbus_device.setMultipleOutputRegisters(temp_analog);
         }
         catch (...) {
-            RCLCPP_WARN(get_logger(), "Unsupported output type for I/O , skipping");
-            publish_state(false, NOT_CONNECTED);
+            RCLCPP_WARN(get_logger(), "Cannot write, skipping");
+            publish_state(false, ModbusInterface::INVALID_IO_TO_WRITE);
         }
     }
  }

@@ -16,18 +16,22 @@ test_device:
   publish_on_event:
     - di_in_test1
   
+  connected_IO:
+    digital_input: 16
+    digital_output: 8
+    analog_input: 0
+    analog_output: 0
+
   input:
     digital:
       di_in_test1: 1
       di_in_test2: 2
       di_in_test5: 5
     analog:
-      an_in_test1:
       
   output:
     digital:
       di_out_test1: 1
       di_out_test6: 6
     analog:
-      an_out_test2: 
-      an_out_test6:
+    

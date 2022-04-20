@@ -20,7 +20,7 @@ find_library(modbus REQUIRED)
 find_library(yaml-cpp REQUIRED)
 
 # main code is a node class + standalone executable
-add_executable(modbus_node src/modbus_node.cpp)
+add_executable(modbus_node src/modbus_node.cpp src/modbus_interface.cpp)
 target_include_directories(modbus_node PRIVATE include)
 target_link_libraries(modbus_node ${rclcpp_LIBRARIES} yaml-cpp modbus)
 ament_target_dependencies(modbus_node std_msgs ros_modbus_msgs)
