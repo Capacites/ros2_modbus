@@ -50,8 +50,6 @@ ModbusNode::ModbusNode(rclcpp::NodeOptions options)
     mp_subscriber = this->create_subscription<ros_modbus_msgs::msg::Modbus>("command", rclcpp::QoS(m_pub_queue_size), [this](ros_modbus_msgs::msg::Modbus::SharedPtr msg){subscriber_callback(msg);}, m_sub_option);
 
     // initializing messages
-    m_msg_state.header.set__frame_id(m_name);
-
     m_msg_on_timer.header.set__frame_id(m_name);
     m_msg_on_timer.set__in_out(std::vector<std::string>());
     m_msg_on_timer.set__values(std::vector<uint16_t>());
