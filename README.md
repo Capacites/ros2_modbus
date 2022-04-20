@@ -40,7 +40,7 @@ While continuously updating the state of the Modbus device's IOs, the node may p
 
 * **`state`** ([ros_modbus_msgs/State])
 
-	Publishes the node state in a custom message:
+	Publishes the node state in a custom message, the state will be published on timer and on event:
 	
 		std_msgs/Header header            # header info
 		bool state                        # Data validity
@@ -91,6 +91,6 @@ While continuously updating the state of the Modbus device's IOs, the node may p
     - Description: File containing the configuration to be loaded
     - Default value: FULL/PATH/TO/YOUR/config_file.yaml
 
-## Map
+## Configuration file
 
-A map example can be found in `ros_modbus/` as `map.yaml`
+A configuration file example can be found in `ros_modbus/` as `conf.yaml`

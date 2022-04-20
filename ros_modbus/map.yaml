@@ -7,6 +7,7 @@ test_device:
   
   publish_rate: 10 #Hz 
   refresh_rate: 100 #Hz 
+  state_rate: 1 #Hz 
       
   publish_on_timer: 
     - di_in_test1
