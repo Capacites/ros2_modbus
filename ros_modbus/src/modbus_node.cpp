@@ -1,4 +1,30 @@
 // -*- lsst-c++ -*-
+/*
+ * This file is part of modbus_ros2.
+ *
+ * MIT License
+ *
+ * Copyright (c) 2022 CAPACITES
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in all
+ * copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
+ */
+
 /**
  * @file modbus_node.cpp
  *
@@ -21,7 +47,7 @@ ModbusNode::ModbusNode(rclcpp::NodeOptions options)
 {
     // configuration of subscriber with it's callback group
     m_sub_option.callback_group = mp_callback_group_publisher;
-    mp_subscriber = this->create_subscription<ros_modbus_msgs::msg::Modbus>("/ros_modbus/command", rclcpp::QoS(m_pub_queue_size), [this](ros_modbus_msgs::msg::Modbus::SharedPtr msg){subscriber_callback(msg);}, m_sub_option);
+    mp_subscriber = this->create_subscription<ros_modbus_msgs::msg::Modbus>("command", rclcpp::QoS(m_pub_queue_size), [this](ros_modbus_msgs::msg::Modbus::SharedPtr msg){subscriber_callback(msg);}, m_sub_option);
 
     // initializing messages
     m_msg_on_timer.header.set__frame_id(m_name);
@@ -34,14 +60,14 @@ ModbusNode::ModbusNode(rclcpp::NodeOptions options)
 
     publish_state(false, ModbusInterface::INITIALIZING); // Currently not working, it appears that publisher is not fully initialized at this staged
 
-    //try
-    //{
+    try
+    {
         configure(); //attempt to configure
-    //}
-    //catch (...) {
-    //    RCLCPP_ERROR(get_logger(), "Configuration file not valid, please provide a valid configuration file");
-    //    publish_state(false, ModbusInterface::INVALID_CONFIGURATION_FILE);
-    //}
+    }
+    catch (...) {
+        RCLCPP_ERROR(get_logger(), "Configuration file %s not valid, please provide a valid configuration file", m_YAML_config_file.c_str());
+        publish_state(false, ModbusInterface::INVALID_CONFIGURATION_FILE);
+    }
 
     // assigning timers to threads and put them to sleep
     mp_checker_timer = this->create_wall_timer(0s, [this](){check_timer_callback();}, mp_callback_group_checker);
@@ -82,6 +108,7 @@ void ModbusNode::configure()
         // configuring Modbus device context
         m_modbus_device.setContext(config[m_name]["address"].as<std::string>(),
                                    config[m_name]["port"].as<int>());
+
         m_modbus_device.initiateConnection();
         auto temp_context = m_modbus_device.getContext();
         RCLCPP_INFO(get_logger(),"Configuring device %s with address %s and port %d", m_name.c_str(), temp_context.first.c_str(), temp_context.second);

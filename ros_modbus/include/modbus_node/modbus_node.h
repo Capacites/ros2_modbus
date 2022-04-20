@@ -1,4 +1,29 @@
 // -*- lsst-c++ -*-
+/*
+ * This file is part of modbus_ros2.
+ *
+ * MIT License
+ *
+ * Copyright (c) 2022 CAPACITES
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in all
+ * copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
+ */
 /**
  * @file modbus_node.h
  *
@@ -14,7 +39,6 @@
 #include <ros_modbus_msgs/msg/state.hpp>
 
 //Modbus include
-#include <modbus/modbus-tcp.h>
 #include "modbus_interface.h"
 
 //YAML include
@@ -33,7 +57,6 @@
 #else
 #include <unistd.h>
 #endif
-
 
 using namespace std::chrono_literals;
 using namespace Modbus;
@@ -115,11 +138,10 @@ private:
     void publish_state(bool, int);    
 
 //ROS parameters
-    int m_timeout = declare_parameter<int>("timeout", 30);                                                                                        /*!< Timeout for connection to the modbus device */
-    int m_sub_queue_size = declare_parameter<int>("sub_queue_size",10);                                                                           /*!< Queue size for subscribers                  */
-    int m_pub_queue_size = declare_parameter<int>("pub_queue_size", 5);                                                                           /*!< Queue size for publishers                   */
-    std::string m_name = declare_parameter<std::string>("name", "test_device");                                                                   /*!< Device name                                 */
-    std::string m_YAML_config_file = declare_parameter<std::string>("YAML_config_file", "/home/ecn/ros2/src/modbus_ros2/ros_modbus/map.yaml");    /*!< YAML device desription file full path       */
+    int m_sub_queue_size = declare_parameter<int>("sub_queue_size",10);                                                              /*!< Queue size for subscribers                  */
+    int m_pub_queue_size = declare_parameter<int>("pub_queue_size", 5);                                                              /*!< Queue size for publishers                   */
+    std::string m_name = declare_parameter<std::string>("name", "test_device");                                                      /*!< Device name                                 */
+    std::string m_YAML_config_file = declare_parameter<std::string>("YAML_config_file", "FULL/PATH/TO/YOUR/config_file.yaml");       /*!< YAML device desription file full path       */
 
 //Node member variables
     std::map<std::string, uint16_t> m_publish_on_timer;       /*!< Map of IO and their values to publish on timer callback */
@@ -146,10 +168,10 @@ private:
 
     rclcpp::SubscriptionOptions m_sub_option;                  /*!< Subscription options */
 
-    rclcpp::Subscription<ros_modbus_msgs::msg::Modbus>::SharedPtr mp_subscriber;                                                                                                                          /*!< Command subscriber */
-    rclcpp::Publisher<ros_modbus_msgs::msg::Modbus>::SharedPtr mp_timer_publisher = this->create_publisher<ros_modbus_msgs::msg::Modbus>("/ros_modbus/report_timer", rclcpp::QoS(m_pub_queue_size));      /*!< On timer publisher */
-    rclcpp::Publisher<ros_modbus_msgs::msg::Modbus>::SharedPtr mp_event_publisher = this->create_publisher<ros_modbus_msgs::msg::Modbus>("/ros_modbus/report_event", rclcpp::QoS(m_pub_queue_size));      /*!< On event publisher */
-    rclcpp::Publisher<ros_modbus_msgs::msg::State>::SharedPtr mp_state_publisher = this->create_publisher<ros_modbus_msgs::msg::State>("/ros_modbus/state", rclcpp::QoS(m_pub_queue_size));               /*!< State publisher    */
+    rclcpp::Subscription<ros_modbus_msgs::msg::Modbus>::SharedPtr mp_subscriber;                                                                                                              /*!< Command subscriber */
+    rclcpp::Publisher<ros_modbus_msgs::msg::Modbus>::SharedPtr mp_timer_publisher = this->create_publisher<ros_modbus_msgs::msg::Modbus>("report_timer", rclcpp::QoS(m_pub_queue_size));      /*!< On timer publisher */
+    rclcpp::Publisher<ros_modbus_msgs::msg::Modbus>::SharedPtr mp_event_publisher = this->create_publisher<ros_modbus_msgs::msg::Modbus>("report_event", rclcpp::QoS(m_pub_queue_size));      /*!< On event publisher */
+    rclcpp::Publisher<ros_modbus_msgs::msg::State>::SharedPtr mp_state_publisher = this->create_publisher<ros_modbus_msgs::msg::State>("state", rclcpp::QoS(m_pub_queue_size));               /*!< State publisher    */
 
     /**
      * @note creating timers to assign them to several callback groups effectivelly assigning them several threads
