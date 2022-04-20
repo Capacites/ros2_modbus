@@ -120,7 +120,6 @@ private:
     int m_pub_queue_size = declare_parameter<int>("pub_queue_size", 5);                                                                           /*!< Queue size for publishers                   */
     std::string m_name = declare_parameter<std::string>("name", "test_device");                                                                   /*!< Device name                                 */
     std::string m_YAML_config_file = declare_parameter<std::string>("YAML_config_file", "/home/ecn/ros2/src/modbus_ros2/ros_modbus/map.yaml");    /*!< YAML device desription file full path       */
-    bool m_debug = declare_parameter<bool>("debug", false);                                                                                       /*!< Debug mode                                  */
 
 //Node member variables
     std::map<std::string, uint16_t> m_publish_on_timer;       /*!< Map of IO and their values to publish on timer callback */
