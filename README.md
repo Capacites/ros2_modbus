@@ -26,7 +26,7 @@ Clone with `--recursive` in order to get the necessary `yaml-cpp` library:
 	cd ros2_workspace/src
 	git clone TODO -b main --recursive
 	cd ../..
-	colcon build --symlink-install --packages-select ros_modbus
+	colcon build --symlink-install --packages-select ros_modbus_msgs ros_modbus
 
 ## Node
 
@@ -35,3 +35,58 @@ The package provides a C++ node: `ros2 run ros_modbus modbus_node`
 While continuously updating the state of the Modbus device's IOs, the node may publish two types of messages:
 - The IO's state (on timer or on event depending on the configuration file)
 - The node state (indicating wether published data should be considered valid or not, and a debug code)
+
+## Published Topics 
+
+* **`state`** ([ros_modbus_msgs/State])
+
+	Publishes the node state in a custom message:
+	
+		std_msgs/Header header            # header info
+		bool state                        # Data validity
+		uint8 error 					  # error number
+
+* **`report_timer`** ([ros_modbus_msgs/Modbus])
+
+	Publishes in a custom message the IO values on timer callback for IOs configured as such in the configuration file:
+	
+		std_msgs/Header header            # header info
+		string[] in_out                   # name of each I/O
+		uint16[] values                   # value of each I/O
+
+* **`report_event`** ([ros_modbus_msgs/Modbus])
+
+	Publishes in a custom message the IO values on event callback for IOs configured as such in the configuration file:
+	
+		std_msgs/Header header            # header info
+		string[] in_out                   # name of each I/O
+		uint16[] values                   # value of each I/O
+
+## Subscribed Topics 
+
+* **`command`** ([ros_modbus_msgs/Modbus])
+
+	Subscribes to commands, write the received values on the associated outputs of the device:
+	
+		std_msgs/Header header            # header info
+		string[] in_out                   # name of each I/O
+		uint16[] values                   # value of each I/O
+
+## Parameters
+
+- `sub_queue_size`
+    - Type: integer
+    - Description: Queue size for subscribers
+    - Default value: 10
+- `pub_queue_size`
+    - Type: integer
+    - Description: Queue size for publisher
+    - Default value: 5
+- `name`
+    - Type: string
+    - Description: Name of the device, must be the same in the configuration file
+    - Default value: test_device
+- `YAML_config_file`
+    - Type: string
+    - Description: File containing the configuration to be loaded
+    - Default value: FULL/PATH/TO/YOUR/config_file.yaml

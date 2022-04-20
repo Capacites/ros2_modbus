@@ -500,6 +500,10 @@ bool ModbusInterface::initiateConnection()
     {
         m_ctx_guard.unlock();
         setConnectionState(true);
+
+        uint32_t* test = new uint32_t;
+        uint32_t* test2 = new uint32_t;
+        modbus_get_response_timeout(m_ctx,test, test2);
         return true;
     }
     else

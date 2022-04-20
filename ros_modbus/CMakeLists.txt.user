@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE QtCreatorProject>
-<!-- Written by QtCreator 4.11.0, 2022-04-20T11:27:09. -->
+<!-- Written by QtCreator 4.11.0, 2022-04-20T15:09:07. -->
 <qtcreator>
  <data>
   <variable>EnvironmentId</variable>
@@ -187,7 +187,7 @@
     <value type="QString" key="ProjectExplorer.ProjectConfiguration.DisplayName">modbus_node</value>
     <value type="QString" key="ProjectExplorer.ProjectConfiguration.Id">CMakeProjectManager.CMakeRunConfiguration.modbus_node</value>
     <value type="QString" key="ProjectExplorer.RunConfiguration.BuildKey">modbus_node</value>
-    <value type="QString" key="RunConfiguration.Arguments"></value>
+    <value type="QString" key="RunConfiguration.Arguments">--ros-args -p YAML_config_file:=/home/ecn/ros2/src/modbus_ros2/ros_modbus/map.yaml</value>
     <value type="bool" key="RunConfiguration.Arguments.multi">false</value>
     <value type="QString" key="RunConfiguration.OverrideDebuggerStartup"></value>
     <value type="bool" key="RunConfiguration.UseCppDebugger">false</value>
