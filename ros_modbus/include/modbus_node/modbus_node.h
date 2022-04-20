@@ -60,27 +60,26 @@ private:
     /**
      * @brief Load the YAML configuration file provided at the node start.
      *
-     * Initialize node with the given YAML.
-     * Calls verify_connection().
-     * Calls verify_IO().
+     * Initialize Modbus device with the given YAML.
+     * Initiate connection.
+     * Simple IO verification.
      */
     void configure();
 
     /**
      * @brief Restart the connection to the configured device.
      *
-     * Close the modbus m_ctx context.
-     * Tries to restart the connection
+     * Tries to restart the connection.
      * Publish a state message if connection restablished.
      */
     void restart_connection();
 
     /**
-     * @brief Update the values of all interest IO one by one.
+     * @brief Update the modbus device memory.
      *
-     * Update the values of all interest IO one by one.
-     * Publish a state message with not connected state.
-     * Calls restart_connection() in it's thread.
+     * Update the modbus device memory.
+     * Publish a state message with not connected state if needed.
+     * Calls restart_connection() in it's thread if disconnected.
      */
     void update_timer_callback();
 
@@ -99,6 +98,9 @@ private:
 
     /**
      * @brief Send a received command to the device
+     *
+     * Get current outpu state and write desired output values on their address.
+     * send the command as a vector of outputs.
      *
      * @param msg The received message with the command
      */

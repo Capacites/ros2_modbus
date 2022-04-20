@@ -10,6 +10,12 @@
 
 using namespace Modbus;
 
+/**
+ * @brief Initiate a new TCP context for Modbus device.
+ *
+ * @param address The Modbus device address*
+ * @param port The port the Modbus device is listening to
+ */
 void ModbusInterface::setContext(std::string address, int port)
 {
     m_address = address;
@@ -17,11 +23,24 @@ void ModbusInterface::setContext(std::string address, int port)
     m_ctx = modbus_new_tcp(address.c_str(), port);
 }
 
+/**
+ * @brief Return the Modbus device address and port.
+ *
+ * @return pair Contains Modbus address as first and Modbus port as second
+ */
 std::pair<std::string, int> ModbusInterface::getContext()
 {
     return std::pair<std::string, int>(m_address, m_port);
 }
 
+/**
+ * @brief Set the number of each IO type for the device.
+ *
+ * @param nb_input_coils Number of input coils of the device
+ * @param nb_output_coils Number of output coils of the device
+ * @param nb_input_registers Number of input registers of the device
+ * @param nb_output_registers Number of output registers of the device
+ */
 void ModbusInterface::setDevice(int nb_input_coils, int nb_output_coils, int nb_input_registers, int nb_output_registers)
 {
     m_memory_guard.lock();
@@ -41,6 +60,14 @@ void ModbusInterface::setDevice(int nb_input_coils, int nb_output_coils, int nb_
     m_memory_guard.unlock();
 }
 
+/**
+ * @brief Declares an IO to the device
+ *
+ * @param name The name of the IO
+ * @param io_type IO type, can be "input" or "output"
+ * @param io_data_type IO data type, can be "digital" or "analog"
+ * @param address IO address (starts at 0)
+ */
 void ModbusInterface::addIO(std::string name, std::string io_type, std::string io_data_type, int address)
 {
     IO_struct temp;
@@ -53,6 +80,9 @@ void ModbusInterface::addIO(std::string name, std::string io_type, std::string i
     m_IO_map_guard.unlock();
 }
 
+/**
+ * @brief simple verification, verify that declared IOs have correct type, data type and are provided an address
+ */
 bool ModbusInterface::verifyIO()
 {
     // Only verify type, data type and if an address is provided for IO of interest
@@ -78,6 +108,11 @@ bool ModbusInterface::verifyIO()
     return true;
 }
 
+/**
+ * @brief Check if an IO is declared
+ * @return true if the IO is declared
+ * @return false otherwise
+ */
 bool ModbusInterface::hasIODeclared(std::string key)
 {
     m_IO_map_guard.lock();
@@ -86,6 +121,11 @@ bool ModbusInterface::hasIODeclared(std::string key)
     return result;
 }
 
+/**
+ * @brief Update the Modbus memory
+ *
+ * @throw MODBUS_EXCEPTION_SLAVE_OR_SERVER_FAILURE if update of a vector fails and set m_connected to false
+ */
 void ModbusInterface::updateMemory()
 {
     //update input coils
@@ -100,6 +140,7 @@ void ModbusInterface::updateMemory()
     m_ctx_guard.unlock();
     if(!m_success)
     {
+        setConnectionState(false);
         throw MODBUS_EXCEPTION_SLAVE_OR_SERVER_FAILURE;
     }
 
@@ -115,6 +156,7 @@ void ModbusInterface::updateMemory()
     m_ctx_guard.unlock();
     if(!m_success)
     {
+        setConnectionState(false);
         throw MODBUS_EXCEPTION_SLAVE_OR_SERVER_FAILURE;
     }
 
@@ -130,6 +172,7 @@ void ModbusInterface::updateMemory()
     m_ctx_guard.unlock();
     if(!m_success)
     {
+        setConnectionState(false);
         throw MODBUS_EXCEPTION_SLAVE_OR_SERVER_FAILURE;
     }
 
@@ -146,10 +189,18 @@ void ModbusInterface::updateMemory()
     m_ctx_guard.unlock();
     if(!m_success)
     {
+        setConnectionState(false);
         throw MODBUS_EXCEPTION_SLAVE_OR_SERVER_FAILURE;
     }
 }
 
+/**
+ * @brief get the value of the input coil at given address
+ *
+ * @param address The coil address
+ *
+ * @return value The input coil value
+ */
 uint8_t ModbusInterface::getSingleInputCoil(int address)
 {
     m_memory_guard.lock();
@@ -159,6 +210,13 @@ uint8_t ModbusInterface::getSingleInputCoil(int address)
 
 }
 
+/**
+ * @brief get the value of the output coil at given address
+ *
+ * @param address The coil address
+ *
+ * @return value The output coil value
+ */
 uint8_t ModbusInterface::getSingleOutputCoil(int address)
 {
     m_memory_guard.lock();
@@ -168,6 +226,15 @@ uint8_t ModbusInterface::getSingleOutputCoil(int address)
 
 }
 
+/**
+ * @brief set the value of the coil at given address
+ *
+ * @param address The coil address
+ * @param value The coil value
+ *
+ * @return true If the value was set
+ * @return false otherwise
+ */
 bool ModbusInterface::setSingleOutputCoil(int address, uint8_t value)
 {
     m_ctx_guard.lock();
@@ -176,6 +243,13 @@ bool ModbusInterface::setSingleOutputCoil(int address, uint8_t value)
     return result;
 }
 
+/**
+ * @brief get the value of the input register at given address
+ *
+ * @param address The register address
+ *
+ * @return value The input register value
+ */
 uint16_t ModbusInterface::getSingleInputRegister(int address)
 {
     m_memory_guard.lock();
@@ -185,6 +259,13 @@ uint16_t ModbusInterface::getSingleInputRegister(int address)
 
 }
 
+/**
+ * @brief get the value of the output register at given address
+ *
+ * @param address The register address
+ *
+ * @return value The output register value
+ */
 uint16_t ModbusInterface::getSingleOutputRegister(int address)
 {
     m_memory_guard.lock();
@@ -194,6 +275,15 @@ uint16_t ModbusInterface::getSingleOutputRegister(int address)
 
 }
 
+/**
+ * @brief set the value of the register at given address
+ *
+ * @param address The register address
+ * @param value The register value
+ *
+ * @return true If the value was set
+ * @return false otherwise
+ */
 bool ModbusInterface::setSingleOutputRegister(int address, uint16_t value)
 {
     m_ctx_guard.lock();
@@ -203,6 +293,11 @@ bool ModbusInterface::setSingleOutputRegister(int address, uint16_t value)
 
 }
 
+/**
+ * @brief get the values of the input coils
+ *
+ * @return values The input coils values as vector
+ */
 std::vector<uint8_t> ModbusInterface::getMultipleInputCoils()
 {
     m_memory_guard.lock();
@@ -211,6 +306,11 @@ std::vector<uint8_t> ModbusInterface::getMultipleInputCoils()
     return temp;
 }
 
+/**
+ * @brief get the values of the output coils
+ *
+ * @return values The output coils values as vector
+ */
 std::vector<uint8_t> ModbusInterface::getMultipleOutputCoils()
 {
     m_memory_guard.lock();
@@ -219,6 +319,14 @@ std::vector<uint8_t> ModbusInterface::getMultipleOutputCoils()
     return temp;
 }
 
+/**
+ * @brief set the values of the coils
+ *
+ * @param value The coils values
+ *
+ * @return true If the value was set
+ * @return false otherwise
+ */
 bool ModbusInterface::setMultipleOutputCoils(std::vector<uint8_t> values)
 {
     m_memory_guard.lock();
@@ -230,6 +338,11 @@ bool ModbusInterface::setMultipleOutputCoils(std::vector<uint8_t> values)
     return result;
 }
 
+/**
+ * @brief get the values of the input registers
+ *
+ * @return values The input registers values as vector
+ */
 std::vector<uint16_t> ModbusInterface::getMultipleInputRegisters()
 {
     m_memory_guard.lock();
@@ -238,6 +351,11 @@ std::vector<uint16_t> ModbusInterface::getMultipleInputRegisters()
     return temp;
 }
 
+/**
+ * @brief get the values of the output registers
+ *
+ * @return values The output registers values as vector
+ */
 std::vector<uint16_t> ModbusInterface::getMultipleOutputRegisters()
 {
     m_memory_guard.lock();
@@ -246,6 +364,14 @@ std::vector<uint16_t> ModbusInterface::getMultipleOutputRegisters()
     return temp;
 }
 
+/**
+ * @brief set the values of the registers
+ *
+ * @param value The registers values
+ *
+ * @return true If the value was set
+ * @return false otherwise
+ */
 bool ModbusInterface::setMultipleOutputRegisters(std::vector<uint16_t> values)
 {
     m_memory_guard.lock();
@@ -257,6 +383,13 @@ bool ModbusInterface::setMultipleOutputRegisters(std::vector<uint16_t> values)
     return result;
 }
 
+/**
+ * @brief Get a given IO value
+ *
+ * @param name The given IO name
+ *
+ * @return the IO value
+ */
 uint16_t ModbusInterface::getIOvalue(std::string name)
 {
     m_IO_map_guard.lock();
@@ -289,6 +422,11 @@ uint16_t ModbusInterface::getIOvalue(std::string name)
     return 0;
 }
 
+/**
+ * @brief Get IO map
+ *
+ * @return a copy of the map with all declared IOs
+ */
 std::map<std::string, ModbusInterface::IO_struct> ModbusInterface::getIOMap()
 {
     m_IO_map_guard.lock();
@@ -297,6 +435,11 @@ std::map<std::string, ModbusInterface::IO_struct> ModbusInterface::getIOMap()
     return map;
 }
 
+/**
+ * @brief Set connection state to a given value
+ *
+ * @param state The state to set the connection state at
+ */
 void ModbusInterface::setConnectionState(bool state)
 {
     m_connection_state_guard.lock();
@@ -304,6 +447,11 @@ void ModbusInterface::setConnectionState(bool state)
     m_connection_state_guard.unlock();
 }
 
+/**
+ * @brief Get connection state
+ *
+ * @return state The connection state value
+ */
 bool ModbusInterface::getConnectionState()
 {
     m_connection_state_guard.lock();
@@ -312,6 +460,14 @@ bool ModbusInterface::getConnectionState()
     return state;
 }
 
+/**
+ * @brief Initiate connection
+ *
+ * Tries to open a connection with the device using it's context via TCP
+ *
+ * @return true if the connection openned
+ * @return false otherwise
+ */
 bool ModbusInterface::initiateConnection()
 {
     m_ctx_guard.lock();
@@ -329,6 +485,14 @@ bool ModbusInterface::initiateConnection()
     }
 }
 
+/**
+ * @brief Restart connection
+ *
+ * Tries to reconnect
+ *
+ * @return true when reconnected
+ * @return false otherwise
+ */
 bool ModbusInterface::restartConnection()
 {
     try {

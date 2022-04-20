@@ -69,9 +69,9 @@ void ModbusNode::publish_state(bool state, int state_code)
 /**
  * @brief Load the YAML configuration file provided at the node start.
  *
- * Initialize node with the given YAML.
- * Calls verify_connection().
- * Calls verify_IO().
+ * Initialize Modbus device with the given YAML.
+ * Initiate connection.
+ * Simple IO verification.
  */
 void ModbusNode::configure()
 {
@@ -172,8 +172,7 @@ void ModbusNode::configure()
 /**
  * @brief Restart the connection to the configured device.
  *
- * Close the modbus m_ctx context.
- * Tries to restart the connection
+ * Tries to restart the connection.
  * Publish a state message if connection restablished.
  */
 void ModbusNode::restart_connection()
@@ -186,11 +185,11 @@ void ModbusNode::restart_connection()
 }
 
 /**
- * @brief Update the values of all interest IO one by one.
+ * @brief Update the modbus device memory.
  *
- * Update the values of all interest IO one by one.
- * Publish a state message with not connected state.
- * Calls restart_connection() in it's thread.
+ * Update the modbus device memory.
+ * Publish a state message with not connected state if needed.
+ * Calls restart_connection() in it's thread if disconnected.
  */
 void ModbusNode::update_timer_callback()
 {
@@ -281,6 +280,9 @@ void ModbusNode::check_timer_callback()
 /**
  * @brief Send a received command to the device
  *
+ * Get current outpu state and write desired output values on their address.
+ * send the command as a vector of outputs.
+ *
  * @param msg The received message with the command
  */
 void ModbusNode::subscriber_callback(ros_modbus_msgs::msg::Modbus::SharedPtr p_msg)
@@ -321,8 +323,8 @@ void ModbusNode::subscriber_callback(ros_modbus_msgs::msg::Modbus::SharedPtr p_m
             m_modbus_device.setMultipleOutputRegisters(temp_analog);
         }
         catch (...) {
-            RCLCPP_WARN(get_logger(), "Unsupported output type for I/O , skipping");
-            publish_state(false, ModbusInterface::NOT_CONNECTED);
+            RCLCPP_WARN(get_logger(), "Cannot write, skipping");
+            publish_state(false, ModbusInterface::INVALID_IO_TO_WRITE);
         }
     }
  }

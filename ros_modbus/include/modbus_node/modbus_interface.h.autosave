@@ -267,6 +267,7 @@ public:
 
     /**
      * @brief Get IO map
+     * 
      * @return a copy of the map with all declared IOs
      */
     std::map<std::string, IO_struct> getIOMap();
