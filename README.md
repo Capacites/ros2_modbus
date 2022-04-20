@@ -90,3 +90,7 @@ While continuously updating the state of the Modbus device's IOs, the node may p
     - Type: string
     - Description: File containing the configuration to be loaded
     - Default value: FULL/PATH/TO/YOUR/config_file.yaml
+
+## Map
+
+A map example can be found in `ros_modbus/` as `map.yaml`
