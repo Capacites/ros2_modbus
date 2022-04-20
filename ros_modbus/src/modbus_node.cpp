@@ -84,11 +84,36 @@ ModbusNode::ModbusNode(rclcpp::NodeOptions options)
  */
 void ModbusNode::publish_state(bool state, int state_code)
 {
-    auto m_msg_state = ros_modbus_msgs::msg::State();
-    m_msg_state.header.set__frame_id(m_name);
+    auto msg_state = ros_modbus_msgs::msg::State();
+    msg_state.header.set__frame_id(m_name);
+    msg_state.header.set__stamp(now());
+    msg_state.set__state(state);
+    msg_state.set__error(state_code);
+    mp_state_publisher->publish(msg_state);
+}
+
+/**
+ * @brief Publish a state message
+ */
+void ModbusNode::publish_state()
+{
+    int errorCode;
+    bool state = m_modbus_device.getConnectionState();
     m_msg_state.header.set__stamp(now());
-    m_msg_state.set__state(state);
-    m_msg_state.set__error(state_code);
+    m_msg_state.set__state(m_configOK && state);
+    if(!m_configOK)
+    {
+        errorCode = ModbusInterface::INVALID_CONFIGURATION_FILE;
+    }
+    else if (!state)
+    {
+        errorCode = ModbusInterface::NOT_CONNECTED;
+    }
+    else
+    {
+        errorCode = ModbusInterface::NO_ISSUE;
+    }
+    m_msg_state.set__error(errorCode);
     mp_state_publisher->publish(m_msg_state);
 }
 
@@ -175,6 +200,11 @@ void ModbusNode::configure()
         mp_update_timer = this->create_wall_timer(std::chrono::milliseconds(int(1000./config[m_name]["refresh_rate"].as<int>())),
                                                   [this](){update_timer_callback();},
                                                   mp_callback_group_update);
+
+        mp_state_timer = this->create_wall_timer(std::chrono::milliseconds(int(1000./config[m_name]["state_rate"].as<int>())),
+                                                  [this](){publish_state();},
+                                                  mp_callback_group_state);
+
 
         // publish updated state
         if(!m_configOK)
@@ -264,7 +294,10 @@ void ModbusNode::publish_timer_callback()
         m_msg_on_timer.in_out.push_back(key);
         m_msg_on_timer.values.push_back(m_publish_on_timer[key]);
     }
-    mp_timer_publisher->publish(m_msg_on_timer);
+    if(m_msg_on_timer.in_out.size() !=0)
+    {
+        mp_timer_publisher->publish(m_msg_on_timer);
+    }
 }
 
 /**
@@ -300,7 +333,11 @@ void ModbusNode::check_timer_callback()
             m_msg_on_event.in_out.push_back(key);
             m_msg_on_event.values.push_back(value);
         }
-        mp_event_publisher->publish(m_msg_on_event);
+        if(m_msg_on_event.in_out.size() !=0)
+        {
+            mp_event_publisher->publish(m_msg_on_event);
+        }
+
     }
 }
 
@@ -323,27 +360,34 @@ void ModbusNode::subscriber_callback(ros_modbus_msgs::msg::Modbus::SharedPtr p_m
         try {
             auto key = p_msg->in_out[iter];
             auto value = p_msg->values[iter];
-
-            if(m_IO_sub_temp.at(key).type == "input") // Write on each output in command with received value
+            if(m_IO_sub_temp.find(key) == m_IO_sub_temp.end())
             {
-                RCLCPP_WARN(get_logger(), "I/O %s is configured as input, can't write here, skipping", key.c_str());
+                RCLCPP_WARN(get_logger(), "IO %s not declared, skipping", key.c_str());
                 publish_state(false, ModbusInterface::INVALID_IO_TO_WRITE);
             }
-            else if(m_IO_sub_temp.at(key).type == "output")
+            else
             {
-                if (m_IO_sub_temp.at(key).data_type == "digital")
+                if(m_IO_sub_temp.at(key).type == "input") // Write on each output in command with received value
                 {
-                    temp_digital[m_IO_sub_temp.at(key).address] = value;
+                    RCLCPP_WARN(get_logger(), "I/O %s is configured as input, can't write here, skipping", key.c_str());
+                    publish_state(false, ModbusInterface::INVALID_IO_TO_WRITE);
                 }
-                else if (m_IO_sub_temp.at(key).data_type == "analog")
+                else if(m_IO_sub_temp.at(key).type == "output")
                 {
-                    temp_analog[m_IO_sub_temp.at(key).address] = value;
-                }
-                else
-                {
-                    RCLCPP_WARN(get_logger(), "Unsupported output type for I/O %s, skipping", key.c_str());
-                    publish_state(false, ModbusInterface::INVALID_IO_DATA_TYPE);
-                    break;
+                    if (m_IO_sub_temp.at(key).data_type == "digital")
+                    {
+                        temp_digital[m_IO_sub_temp.at(key).address] = value;
+                    }
+                    else if (m_IO_sub_temp.at(key).data_type == "analog")
+                    {
+                        temp_analog[m_IO_sub_temp.at(key).address] = value;
+                    }
+                    else
+                    {
+                        RCLCPP_WARN(get_logger(), "Unsupported output type for I/O %s, skipping", key.c_str());
+                        publish_state(false, ModbusInterface::INVALID_IO_DATA_TYPE);
+                        break;
+                    }
                 }
             }
             m_modbus_device.setMultipleOutputCoils(temp_digital);

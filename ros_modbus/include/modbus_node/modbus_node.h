@@ -135,7 +135,12 @@ private:
      * @param state The state to publish, true for a valid state, false if an error occurs
      * @param state code The state code, to help troubleshoot
      */
-    void publish_state(bool, int);    
+    void publish_state(bool, int);
+
+    /**
+     * @brief Publish a state message
+     */
+    void publish_state();
 
 //ROS parameters
     int m_sub_queue_size = declare_parameter<int>("sub_queue_size",10);                                                              /*!< Queue size for subscribers                  */
@@ -150,7 +155,9 @@ private:
     std::map<std::string, uint16_t> m_publish_on_event;       /*!< Map of IO and their values to publish on event          */
     ros_modbus_msgs::msg::Modbus m_msg_on_event;              /*!< Modbus message for values to publish on event           */
 
-    ModbusInterface m_modbus_device;
+    ros_modbus_msgs::msg::State m_msg_state;                  /*!< State message for values to publish on event            */
+
+    ModbusInterface m_modbus_device;                          /*!< The Modbus instance                                     */
 
     uint8_t m_temp_digit_value;    /*!< Temporary value for digital reading      */
     uint16_t m_update_temp_value;  /*!< Temporary value for reading              */
@@ -165,6 +172,7 @@ private:
     rclcpp::CallbackGroup::SharedPtr mp_callback_group_update = this->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);              /*!< Update callback group        */
     rclcpp::CallbackGroup::SharedPtr mp_callback_group_checker = this->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);             /*!< Event checker callback group */
     rclcpp::CallbackGroup::SharedPtr mp_callback_group_reconnection = this->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);        /*!< Reconnection callback group  */
+    rclcpp::CallbackGroup::SharedPtr mp_callback_group_state = this->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);               /*!< State callback group         */
 
     rclcpp::SubscriptionOptions m_sub_option;                  /*!< Subscription options */
 
@@ -180,6 +188,7 @@ private:
     rclcpp::TimerBase::SharedPtr mp_checker_timer;             /*!< Checker timer            */
     rclcpp::TimerBase::SharedPtr mp_update_timer;              /*!< IO value update timer    */
     rclcpp::TimerBase::SharedPtr mp_reconnection_timer;        /*!< Reconnection timer       */
+    rclcpp::TimerBase::SharedPtr mp_state_timer;               /*!< State publisher timer    */
 
    };
 }
