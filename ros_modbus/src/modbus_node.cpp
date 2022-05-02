@@ -362,6 +362,8 @@ void ModbusNode::subscriber_callback(ros_modbus_msgs::msg::Modbus::SharedPtr p_m
     for(int iter=0; iter < int(p_msg->in_out.size()); iter++) // iterate on the IO and value list of the message
     {
         auto m_IO_sub_temp = m_modbus_device.getIOMap();
+        m_analog = false;
+        m_digital = false;
 
         m_analog = false;
         m_digital = false;

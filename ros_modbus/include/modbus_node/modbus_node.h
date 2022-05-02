@@ -165,6 +165,8 @@ private:
 
     bool m_publish;                /*!< Control to publish event message         */
     bool m_configOK;               /*!< Configuration state to the modbus device */
+    bool m_analog;                 /*!< Control to send analog commands          */
+    bool m_digital;                /*!< Control to send digital commands         */
 
     bool m_analog;                 /*!< Control to send analog commands          */
     bool m_digital;                /*!< Control to send digital commands         */
