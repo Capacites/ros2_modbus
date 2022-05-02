@@ -32,6 +32,10 @@
  */
 
 #include <modbus_node/modbus_node.h>
+#include <string>
+#include <fstream>
+#include <vector>
+#include <utility>
 
 using namespace std::chrono_literals;
 using namespace modbus_node;
@@ -353,11 +357,14 @@ void ModbusNode::check_timer_callback()
  */
 void ModbusNode::subscriber_callback(ros_modbus_msgs::msg::Modbus::SharedPtr p_msg)
 {
+    auto temp_digital = m_modbus_device.getMultipleOutputCoils();
+    auto temp_analog = m_modbus_device.getMultipleOutputRegisters();
     for(int iter=0; iter < int(p_msg->in_out.size()); iter++) // iterate on the IO and value list of the message
     {
-        auto temp_digital = m_modbus_device.getMultipleOutputCoils();
-        auto temp_analog = m_modbus_device.getMultipleOutputRegisters();
         auto m_IO_sub_temp = m_modbus_device.getIOMap();
+
+        m_analog = false;
+        m_digital = false;
 
         try {
             auto key = p_msg->in_out[iter];
@@ -379,10 +386,12 @@ void ModbusNode::subscriber_callback(ros_modbus_msgs::msg::Modbus::SharedPtr p_m
                     if (m_IO_sub_temp.at(key).data_type == "digital")
                     {
                         temp_digital[m_IO_sub_temp.at(key).address] = value;
+                        m_digital = true;
                     }
                     else if (m_IO_sub_temp.at(key).data_type == "analog")
                     {
                         temp_analog[m_IO_sub_temp.at(key).address] = value;
+                        m_analog = true;
                     }
                     else
                     {
@@ -392,13 +401,50 @@ void ModbusNode::subscriber_callback(ros_modbus_msgs::msg::Modbus::SharedPtr p_m
                     }
                 }
             }
-            m_modbus_device.setMultipleOutputCoils(temp_digital);
-            m_modbus_device.setMultipleOutputRegisters(temp_analog);
         }
         catch (...) {
             RCLCPP_WARN(get_logger(), "Cannot write, skipping");
             publish_state(false, ModbusInterface::INVALID_IO_TO_WRITE);
         }
+    }
+
+    int count = 0;
+    m_testd = true;
+    m_testa = true;
+
+    do // tries up to 3 times to send commands
+    {
+        count ++;
+        if(m_digital)
+        {
+            m_testd = false;
+            try {
+                m_testd = m_modbus_device.setMultipleOutputCoils(temp_digital);
+            } catch (...) {
+            }
+        }
+    }
+    while(count < 4 && !m_testd);
+    count = 0;
+    do
+    {
+        count ++;
+        if(m_analog)
+        {
+            m_testa = false;
+            try {
+                m_testa = m_modbus_device.setMultipleOutputRegisters(temp_analog);
+            } catch (...) {
+            }
+        }
+    }
+    while(count < 4 && !m_testa);
+
+    if(!m_testa || !m_testd) // if we didn't managed to send the command
+    {
+
+        RCLCPP_WARN(get_logger(), "Cannot write, skipping");
+        publish_state(false, ModbusInterface::INVALID_IO_TO_WRITE);
     }
  }
 

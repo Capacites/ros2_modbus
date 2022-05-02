@@ -166,6 +166,12 @@ private:
     bool m_publish;                /*!< Control to publish event message         */
     bool m_configOK;               /*!< Configuration state to the modbus device */
 
+    bool m_analog;                 /*!< Control to send analog commands          */
+    bool m_digital;                /*!< Control to send digital commands         */
+
+    bool m_testd;                  /*!< Control if digital commands sent         */
+    bool m_testa;                  /*!< Control if analog commands sent          */
+
 //ROS components
     rclcpp::CallbackGroup::SharedPtr mp_callback_group_subscriber = this->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);          /*!< Subscriber callback group    */
     rclcpp::CallbackGroup::SharedPtr mp_callback_group_publisher = this->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);           /*!< Publisher callback group     */
