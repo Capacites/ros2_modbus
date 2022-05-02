@@ -168,9 +168,6 @@ private:
     bool m_analog;                 /*!< Control to send analog commands          */
     bool m_digital;                /*!< Control to send digital commands         */
 
-    bool m_analog;                 /*!< Control to send analog commands          */
-    bool m_digital;                /*!< Control to send digital commands         */
-
     bool m_testd;                  /*!< Control if digital commands sent         */
     bool m_testa;                  /*!< Control if analog commands sent          */
 
