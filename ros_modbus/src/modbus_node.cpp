@@ -358,6 +358,8 @@ void ModbusNode::subscriber_callback(ros_modbus_msgs::msg::Modbus::SharedPtr p_m
         auto temp_digital = m_modbus_device.getMultipleOutputCoils();
         auto temp_analog = m_modbus_device.getMultipleOutputRegisters();
         auto m_IO_sub_temp = m_modbus_device.getIOMap();
+        m_analog = false;
+        m_digital = false;
 
         try {
             auto key = p_msg->in_out[iter];
@@ -379,10 +381,12 @@ void ModbusNode::subscriber_callback(ros_modbus_msgs::msg::Modbus::SharedPtr p_m
                     if (m_IO_sub_temp.at(key).data_type == "digital")
                     {
                         temp_digital[m_IO_sub_temp.at(key).address] = value;
+                        m_digital = true;
                     }
                     else if (m_IO_sub_temp.at(key).data_type == "analog")
                     {
                         temp_analog[m_IO_sub_temp.at(key).address] = value;
+                        m_analog = true;
                     }
                     else
                     {
@@ -392,8 +396,14 @@ void ModbusNode::subscriber_callback(ros_modbus_msgs::msg::Modbus::SharedPtr p_m
                     }
                 }
             }
-            m_modbus_device.setMultipleOutputCoils(temp_digital);
-            m_modbus_device.setMultipleOutputRegisters(temp_analog);
+            if(m_digital)
+            {
+                m_modbus_device.setMultipleOutputCoils(temp_digital);
+            }
+            if(m_digital)
+            {
+                m_modbus_device.setMultipleOutputRegisters(temp_analog);
+            }
         }
         catch (...) {
             RCLCPP_WARN(get_logger(), "Cannot write, skipping");
