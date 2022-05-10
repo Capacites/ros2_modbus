@@ -15,8 +15,8 @@ The source code is released under a [MIT license](LICENSE).
 #### Dependencies
 
 - [Robot Operating System (ROS) 2](http://wiki.ros.org) (middleware for robotics),
-- [yaml-cpp](https://github.com/jbeder/yaml-cpp) as submodule,
-- [libmodbus](https://github.com/stephane/libmodbus) (Modbus library)
+- [libyaml-cpp-dev](https://github.com/jbeder/yaml-cpp) ,
+- [libmodbus-dev](https://github.com/stephane/libmodbus) (Modbus library)
 
 
 #### Building
