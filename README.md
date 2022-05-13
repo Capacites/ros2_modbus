@@ -21,8 +21,6 @@ The source code is released under a [MIT license](LICENSE).
 
 #### Building
 
-Clone with `--recursive` in order to get the necessary `yaml-cpp` library:
-
 	cd ros2_workspace/src
 	git clone TODO -b main --recursive
 	cd ../..
