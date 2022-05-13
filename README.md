@@ -22,7 +22,7 @@ The source code is released under a [MIT license](LICENSE).
 #### Building
 
 	cd ros2_workspace/src
-	git clone TODO -b main --recursive
+	git clone https://gitlab.univ-nantes.fr/CAPACITES-ROBOTIQUE_PROCEDES/module-ros/modbus_ros2.git -b main --recursive
 	cd ../..
 	colcon build --symlink-install --packages-select ros_modbus_msgs ros_modbus
 
