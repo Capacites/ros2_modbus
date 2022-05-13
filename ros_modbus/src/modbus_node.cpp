@@ -150,15 +150,24 @@ void ModbusNode::configure()
                                   config[m_name]["connected_IO"]["analog_output"].as<int>());
 
         // Creating map of IO to publish on timer
-        for (const auto &iter : config[m_name]["publish_on_timer"].as<std::vector<std::string>>())
+        if(config[m_name]["publish_on_timer"].size() != 0)
         {
-            m_publish_on_timer.insert({iter, 0});
+            for (const auto &iter : config[m_name]["publish_on_timer"].as<std::vector<std::string>>())
+            {
+
+                RCLCPP_INFO(get_logger(),"%s", iter.c_str());
+                m_publish_on_timer.insert({iter, 0});
+            }
         }
 
+
         // Creating map of IO to publish on event
-        for (const auto &iter : config[m_name]["publish_on_event"].as<std::vector<std::string>>())
+        if(config[m_name]["publish_on_event"].size() != 0)
         {
-            m_publish_on_event.insert({iter, 0});
+            for (const auto &iter : config[m_name]["publish_on_event"].as<std::vector<std::string>>())
+            {
+                m_publish_on_event.insert({iter, 0});
+            }
         }
 
         // Construct IO structure for inputs, update map with IO name as key for it's structure
