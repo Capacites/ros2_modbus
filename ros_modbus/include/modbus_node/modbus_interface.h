@@ -121,6 +121,13 @@ public:
         std::vector<uint16_t> output_registers;    /*!< Vector of output registers values of the device */
     };
 
+    struct modbus_offsets{
+        int digital_input;                         /*!< Offset of input coils of the device             */
+        int digital_output;                        /*!< Offset of output coils of the device            */
+        int analog_input;                          /*!< Offset of input registers of the device         */
+        int analog_output;                         /*!< Offset of output registers of the device        */
+    };
+
     /**
      * @brief Initiate a new TCP context for Modbus device.
      *
@@ -145,6 +152,16 @@ public:
      * @param nb_output_registers Number of output registers of the device
      */
     void setDevice(int, int, int, int);
+
+    /**
+     * @brief Set the offset of each IO type for the device.
+     *
+     * @param nb_input_coils Offset of input coils of the device
+     * @param nb_output_coils Offset of output coils of the device
+     * @param nb_input_registers Offset of input registers of the device
+     * @param nb_output_registers Offset of output registers of the device
+     */
+    void setOffsets(int, int, int, int);
 
     /**
      * @brief Declares an IO to the device
@@ -334,11 +351,13 @@ private:
 
     modbus_t *m_ctx;                               /*!< Modbus context                              */
     modbus_memory m_memory;                        /*!< Modbus memory state                         */
+    modbus_offsets m_offsets;                      /*!< Modbus offsets                              */
     std::map<std::string, IO_struct> m_IO_map;     /*!< Map of all declared IO and their definition */
 
     std::mutex m_ctx_guard;                        /*!< Modbus context guard                        */
     std::mutex m_IO_map_guard;                     /*!< IO map guard                                */
     std::mutex m_memory_guard;                     /*!< Memory guard                                */
+    std::mutex m_offsets_guard;                    /*!< Offsets guard                               */
     std::mutex m_connection_state_guard;           /*!< connection state guard                      */
 
     bool m_connected{false};                       /*!< Connection state to the modbus device       */
