@@ -86,6 +86,26 @@ void ModbusInterface::setDevice(int nb_input_coils, int nb_output_coils, int nb_
 }
 
 /**
+ * @brief Set the offset of each IO type for the device.
+ *
+ * @param nb_input_coils Offset of input coils of the device
+ * @param nb_output_coils Offset of output coils of the device
+ * @param nb_input_registers Offset of input registers of the device
+ * @param nb_output_registers Offset of output registers of the device
+ */
+void ModbusInterface::setOffsets(int DI_offset, int DO_offset, int AI_offset, int AO_offset)
+{
+    m_offsets_guard.lock();
+
+    m_offsets.digital_input = DI_offset;
+    m_offsets.digital_output = DO_offset;
+    m_offsets.analog_input = AI_offset;
+    m_offsets.analog_output = AO_offset;
+
+    m_offsets_guard.unlock();
+}
+
+/**
  * @brief Declares an IO to the device
  *
  * @param name The name of the IO
@@ -159,9 +179,11 @@ void ModbusInterface::updateMemory()
     m_memory_guard.unlock();
 
     m_ctx_guard.lock();
+    m_offsets_guard.lock();
     m_memory_guard.lock();
-    m_success = modbus_read_input_bits(m_ctx, 0, m_temp_nb_to_get , m_memory.input_coils.data()) != -1;
+    m_success = modbus_read_input_bits(m_ctx, m_offsets.digital_input, m_temp_nb_to_get, m_memory.input_coils.data()) != -1;
     m_memory_guard.unlock();
+    m_offsets_guard.unlock();
     m_ctx_guard.unlock();
     if(!m_success)
     {
@@ -175,9 +197,11 @@ void ModbusInterface::updateMemory()
     m_memory_guard.unlock();
 
     m_ctx_guard.lock();
+    m_offsets_guard.lock();
     m_memory_guard.lock();
-    m_success = modbus_read_bits(m_ctx, 0,m_temp_nb_to_get , m_memory.output_coils.data()) != -1;
+    m_success = modbus_read_bits(m_ctx, m_offsets.digital_output, m_temp_nb_to_get, m_memory.output_coils.data()) != -1;
     m_memory_guard.unlock();
+    m_offsets_guard.unlock();
     m_ctx_guard.unlock();
     if(!m_success)
     {
@@ -191,9 +215,11 @@ void ModbusInterface::updateMemory()
     m_memory_guard.unlock();
 
     m_ctx_guard.lock();
+    m_offsets_guard.lock();
     m_memory_guard.lock();
-    m_success = modbus_read_input_registers(m_ctx, 0,m_temp_nb_to_get , m_memory.input_registers.data()) != -1;
+    m_success = modbus_read_input_registers(m_ctx, m_offsets.analog_input, m_temp_nb_to_get, m_memory.input_registers.data()) != -1;
     m_memory_guard.unlock();
+    m_offsets_guard.unlock();
     m_ctx_guard.unlock();
     if(!m_success)
     {
@@ -208,9 +234,11 @@ void ModbusInterface::updateMemory()
     m_memory_guard.unlock();
 
     m_ctx_guard.lock();
+    m_offsets_guard.lock();
     m_memory_guard.lock();
-    m_success = modbus_read_registers(m_ctx, 0,m_temp_nb_to_get , m_memory.output_registers.data()) != -1;
+    m_success = modbus_read_registers(m_ctx, m_offsets.analog_output, m_temp_nb_to_get, m_memory.output_registers.data()) != -1;
     m_memory_guard.unlock();
+    m_offsets_guard.unlock();
     m_ctx_guard.unlock();
     if(!m_success)
     {
@@ -358,7 +386,9 @@ bool ModbusInterface::setMultipleOutputCoils(std::vector<uint8_t> values)
     int temp_to_write = m_memory.nb_output_coils;
     m_memory_guard.unlock();
     m_ctx_guard.lock();
-    bool result = modbus_write_bits(m_ctx, 0, temp_to_write, values.data());
+    m_offsets_guard.lock();
+    bool result = modbus_write_bits(m_ctx, m_offsets.digital_output, temp_to_write, values.data());
+    m_offsets_guard.unlock();
     m_ctx_guard.unlock();
     return result;
 }
@@ -403,7 +433,9 @@ bool ModbusInterface::setMultipleOutputRegisters(std::vector<uint16_t> values)
     int temp_to_write = m_memory.nb_output_registers;
     m_memory_guard.unlock();
     m_ctx_guard.lock();
-    bool result = modbus_write_registers(m_ctx, 0, temp_to_write, values.data());
+    m_offsets_guard.lock();
+    bool result = modbus_write_registers(m_ctx, m_offsets.analog_output, temp_to_write, values.data());
+    m_offsets_guard.unlock();
     m_ctx_guard.unlock();
     return result;
 }

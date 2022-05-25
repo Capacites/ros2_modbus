@@ -149,6 +149,12 @@ void ModbusNode::configure()
                                   config[m_name]["connected_IO"]["analog_input"].as<int>(),
                                   config[m_name]["connected_IO"]["analog_output"].as<int>());
 
+        m_modbus_device.setOffsets(config[m_name]["offsets"]["digital_input"].as<int>(),
+                                   config[m_name]["offsets"]["digital_output"].as<int>(),
+                                   config[m_name]["offsets"]["analog_input"].as<int>(),
+                                   config[m_name]["offsets"]["analog_output"].as<int>());
+
+
         // Creating map of IO to publish on timer
         if(config[m_name]["publish_on_timer"].size() != 0)
         {
@@ -303,7 +309,7 @@ void ModbusNode::publish_timer_callback()
     m_msg_on_timer.set__values(std::vector<uint16_t>());
     m_msg_on_timer.set__in_out(std::vector<std::string>());
 
-    for(auto &[key, value] : m_publish_on_event)
+    for(auto &[key, value] : m_publish_on_timer)
     {
         m_publish_on_timer[key] = m_modbus_device.getIOvalue(key);
         m_msg_on_timer.in_out.push_back(key);
