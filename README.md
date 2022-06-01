@@ -23,7 +23,7 @@ The source code is released under a [MIT license](LICENSE).
 
 	cd ros2_workspace/src
 	git clone TODO -b main --recursive
-	cd ../..
+	cd ..
 	colcon build --symlink-install --packages-select ros_modbus_msgs ros_modbus
 
 ## Node
