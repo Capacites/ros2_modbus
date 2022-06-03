@@ -141,7 +141,7 @@ bool ModbusInterface::verifyIO()
         {
             return false;
         }
-        else if(structure.data_type != "digital" && structure.type != "analog")
+        else if(structure.data_type != "digital" && structure.data_type != "analog")
         {
             return false;
         }
