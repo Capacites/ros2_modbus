@@ -1,0 +1,10 @@
+<?xml version="1.0"?>
+
+<launch>
+	<arg name="config" default="$(find ros_modbus)/config/configuration.yaml" />
+
+	<node pkg="ros_modbus" type="modbus_node" name="modbus_node" output="screen">
+	    <param name="name" type="str" value="test_device"/>
+	    <param name="config_file" type="str" value="$(arg config)"/>
+	</node>
+</launch>
