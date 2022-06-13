@@ -91,4 +91,4 @@ While continuously updating the state of the Modbus device's IOs, the node may p
 
 ## Configuration file
 
-A configuration file example can be found in `ros_modbus/` as `conf.yaml`
+A configuration file example can be found in `ros_modbus/config` as `configuration.yaml`

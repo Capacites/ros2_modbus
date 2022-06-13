@@ -1,0 +1,10 @@
+<?xml version="1.0"?>
+
+<launch>
+	<arg name="config" default="$(find-pkg-share ros_modbus)/config/configuration.yaml" />
+
+	<node pkg="ros_modbus" exec="modbus_node" name="modbus_node">
+	    <param name="name" value="test_device"/>
+	    <param name="YAML_config_file" value="$(var config)"/>
+	</node>
+</launch>

@@ -18,7 +18,6 @@
 
   <depend>rclcpp</depend>
   <depend>std_msgs</depend>
-  <depend>libmodbus</depend>
   <depend>ros_modbus_msgs</depend>
   <depend>yaml-cpp</depend>
   <depend>libmodbus-dev</depend>
