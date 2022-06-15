@@ -457,6 +457,13 @@ void ModbusNode::subscriber_callback(ros_modbus_msgs::msg::Modbus::SharedPtr p_m
     }
     while(count < 4 && !m_testa);
 
+    try
+    {
+        m_modbus_device.updateMemory();
+    }
+    catch(...) // If error occurs
+    {}
+
     if(!m_testa || !m_testd) // if we didn't managed to send the command
     {
 
