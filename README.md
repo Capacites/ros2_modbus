@@ -28,6 +28,13 @@ The source code is released under a [MIT license](LICENSE).
 
 ## Node
 
+
+
+
+#### Architecture
+
+![Archi](Archi.png "Achitecture")
+
 The package provides a C++ node: `ros2 run ros_modbus modbus_node`
 
 While continuously updating the state of the Modbus device's IOs, the node may publish two types of messages:
